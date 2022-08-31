@@ -1,12 +1,15 @@
+# extract_resources.py
+
 from ast import literal_eval as make_tuple
+from PIL import Image
+import os
 import sys
+
+import extract_music
+import tables
 import text_compression
 import util
-from PIL import Image
-import tables
 import yaml
-import extract_music
-import os
 
 PATH=''
 
@@ -16,17 +19,21 @@ get_byte = ROM.get_byte
 get_word = ROM.get_word
 get_bytes = ROM.get_bytes
 
+# ----------------------- get_int8 -------------------------
 def get_int8(ea):
+  '''Gets the byte (b) at address ea, checks if it is greater than or equal to 0x80, and subtracts 256 if it is'''
   b = get_byte(ea)
   if b & 0x80: b -= 256
   return b
 
+# ----------------------- get_int16 ------------------------
 def get_int16(ea):
+  '''Gets the word (b) at address ea, checks if it is greater than or equal to 0x8000, and subtracts 65536 if it is'''
   b = get_word(ea)
   if b & 0x8000: b -= 65536
   return b
 
-
+# ----------------------- print_map32_to_map16 -------------
 def print_map32_to_map16(f):
   for i in range(2218):
     def getit(ea):
@@ -99,9 +106,13 @@ def get_exit_datas():
       y['door'] = ['palace' if fdoor & 0x8000 else 'sanctuary', (fdoor & 0x7e) >> 1, (fdoor & 0x3f80) >> 7]
     r.setdefault(screen_index, []).append(y)
   return r
+
+# Move this later
 EXIT_DATAS = get_exit_datas()
 
+# ----------------------- get_loadoffs ---------------------
 def get_loadoffs(c, d):
+  '''Returns the bitwise OR of the bitwise AND of y with 0x3f shifted left 7 bits and the bitwise AND of x with 0x3f shifted left 1 bit'''
   x, y = c[0] >> 4, c[1] >> 4
   x += d[0]
   y += d[1]
@@ -138,6 +149,8 @@ def get_ow_travel_infos():
     y['unk'] = [unk1, unk3]
     r.setdefault(screen_index, []).append(y)
   return r
+
+# Move later
 OW_TRAVEL_INFOS = get_ow_travel_infos()
 
 def get_ow_entrance_info():
@@ -148,6 +161,8 @@ def get_ow_entrance_info():
     entrance_id = get_byte(0x9BBB73 + i)
     r.setdefault(area, []).append({'index' : i, 'x' : (pos >> 1) & 0x3f, 'y' : (pos >> 7) & 0x3f, 'entrance_id' : entrance_id})
   return r
+
+# Move later
 OW_ENTRANCE_INFO = get_ow_entrance_info()
 
 def get_hole_infos():
@@ -158,6 +173,8 @@ def get_hole_infos():
     entrance_id = get_byte(0x9BB84C + i)
     r.setdefault(area, []).append({'x' : (pos >> 1) & 0x3f, 'y' : (pos >> 7) & 0x3f, 'entrance_id' : entrance_id})
   return r
+
+# Move later
 HOLE_INFO = get_hole_infos()
 
 def print_overworld_area(overworld_area):
@@ -427,6 +444,7 @@ def get_chest_info():
     all.setdefault(room & 0x7fff, []).append((data, (room & 0x8000) != 0))
   return all
 
+# Move later
 CHEST_INFO = get_chest_info()
 
 def _get_entrance_info_one(i, set):
@@ -506,6 +524,7 @@ def get_entrance_info(set):
     r.setdefault(room, []).append(y)
   return r
 
+# Carefully move later
 ENTRANCE_INFO = get_entrance_info(0)
 STARTING_POINT_INFO = get_entrance_info(1)
 PITS_HURT_PLAYER = set(get_word(0x80990C + i * 2) for i in range(57))
