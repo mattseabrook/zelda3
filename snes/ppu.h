@@ -19,15 +19,13 @@ typedef struct BgLayer {
   bool tilemapHigher;
   uint16_t tilemapAdr;
   uint16_t tileAdr;
-  bool bigTiles;
+  bool bigTiles_always_zero;
   bool mosaicEnabled;
 } BgLayer;
 
 typedef struct Layer {
-  bool mainScreenEnabled;
-  bool subScreenEnabled;
-  bool mainScreenWindowed;
-  bool subScreenWindowed;
+  bool screenEnabled[2];   // 0 = main, 1 = sub
+  bool screenWindowed[2];  // 0 = main, 1 = sub
 } Layer;
 
 typedef struct WindowLayer {
@@ -35,7 +33,7 @@ typedef struct WindowLayer {
   bool window2enabled;
   bool window1inversed;
   bool window2inversed;
-  uint8_t maskLogic;
+  uint8_t maskLogic_always_zero;
 } WindowLayer;
 
 struct Ppu {
@@ -70,7 +68,7 @@ struct Ppu {
   uint8_t objPriorityBuffer[256];
   bool timeOver;
   bool rangeOver;
-  bool objInterlace;
+  bool objInterlace_always_zero;
   // background layers
   BgLayer bgLayer[4];
   uint8_t scrollPrev;
@@ -86,7 +84,7 @@ struct Ppu {
   bool m7charFill;
   bool m7xFlip;
   bool m7yFlip;
-  bool m7extBg;
+  bool m7extBg_always_zero;
   // mode 7 internal
   int32_t m7startX;
   int32_t m7startY;
@@ -112,12 +110,12 @@ struct Ppu {
   uint8_t mode;
   bool bg3priority;
   bool evenFrame;
-  bool pseudoHires;
-  bool overscan;
-  bool frameOverscan; // if we are overscanning this frame (determined at 0,225)
-  bool interlace;
-  bool frameInterlace; // if we are interlacing this frame (determined at start vblank)
-  bool directColor;
+  bool pseudoHires_always_zero;
+  bool overscan_always_zero;
+  bool frameOverscan_always_zero; // if we are overscanning this frame (determined at 0,225)
+  bool interlace_always_zero;
+  bool frameInterlace_always_zero; // if we are interlacing this frame (determined at start vblank)
+  bool directColor_always_zero;
   // latching
   uint16_t hCount;
   uint16_t vCount;
@@ -134,7 +132,6 @@ struct Ppu {
 Ppu* ppu_init(Snes* snes);
 void ppu_free(Ppu* ppu);
 void ppu_reset(Ppu* ppu);
-bool ppu_checkOverscan(Ppu* ppu);
 void ppu_handleVblank(Ppu* ppu);
 void ppu_runLine(Ppu* ppu, int line);
 uint8_t ppu_read(Ppu* ppu, uint8_t adr);
