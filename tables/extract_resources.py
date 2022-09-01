@@ -19,12 +19,14 @@ get_byte = ROM.get_byte
 get_word = ROM.get_word
 get_bytes = ROM.get_bytes
 
+
 # ----------------------- get_int8 -------------------------
 def get_int8(ea):
-  '''Gets the byte (b) at address ea, checks if it is greater than or equal to 0x80, and subtracts 256 if it is'''
+  '''Gets the byte (b) at address ea, checks if it is greater than or equal to 128, and subtracts 256 if it is'''
   b = get_byte(ea)
   if b & 0x80: b -= 256
   return b
+
 
 # ----------------------- get_int16 ------------------------
 def get_int16(ea):
@@ -33,16 +35,19 @@ def get_int16(ea):
   if b & 0x8000: b -= 65536
   return b
 
+
 # ----------------------- print_map32_to_map16 -------------
 def print_map32_to_map16(f):
+  '''Prints map32_to_map16 table to a file (f)'''
   for i in range(2218):
     def getit(ea):
+      '''creates a list of 6 bytes at the given address (ea), and then returns a list of 4 integers'''
       ov = [get_byte(ea + j) for j in range(6)]
       res=[0]*4
-      res[0] = ov[0] | (ov[4] >> 4) << 8
-      res[1] = ov[1] | (ov[4] & 0xf) << 8
-      res[2] = ov[2] | (ov[5] >> 4) << 8
-      res[3] = ov[3] | (ov[5] & 0xf) << 8
+      res[0] = ov[0] | (ov[4] >> 4) << 8      # shifted left by 8 bits, and then ORed with the 5th byte of the list of 6 bytes, shifted right by 4 bits
+      res[1] = ov[1] | (ov[4] & 0xf) << 8     # shifted left by 8 bits, and then ORed with the 5th byte of the list of 6 bytes, ANDed with 0xf
+      res[2] = ov[2] | (ov[5] >> 4) << 8      # shifted left by 8 bits, and then ORed with the 6th byte of the list of 6 bytes, shifted right by 4 bits
+      res[3] = ov[3] | (ov[5] & 0xf) << 8     # shifted left by 8 bits, and then ORed with the 6th byte of the list of 6 bytes, ANDed with 0xf
       return res
     t0 = getit(0x838000 + i * 6)
     t1 = getit(0x83b400 + i * 6)
@@ -51,6 +56,8 @@ def print_map32_to_map16(f):
     for j in range(4):
       print('%5d: %4d, %4d, %4d, %4d' % (i * 4 + j, t0[j], t1[j], t2[j], t3[j]), file = f)
 
+
+# ----------------------- get_exit_datas -------------------
 def get_exit_datas():
   r = {}
   for i in range(79):
@@ -112,7 +119,7 @@ EXIT_DATAS = get_exit_datas()
 
 # ----------------------- get_loadoffs ---------------------
 def get_loadoffs(c, d):
-  '''Returns the bitwise OR of the bitwise AND of y with 0x3f shifted left 7 bits and the bitwise AND of x with 0x3f shifted left 1 bit'''
+  '''Returns the bitwise OR of the bitwise AND of y with 0x3f shifted left 7 bits, and the bitwise AND of x with 0x3f shifted left 1 bit'''
   x, y = c[0] >> 4, c[1] >> 4
   x += d[0]
   y += d[1]
