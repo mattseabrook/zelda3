@@ -46,8 +46,6 @@ static void HandleGamepadInput(int button, bool pressed);
 static void HandleGamepadAxisInput(int gamepad_id, int axis, int value);
 static void OpenOneGamepad(int i);
 
-static inline int IntMin(int a, int b) { return a < b ? a : b; }
-static inline int IntMax(int a, int b) { return a > b ? a : b; }
 
 enum {
   kRenderWidth = 512,
@@ -190,7 +188,7 @@ int main(int argc, char** argv) {
 #if defined(_WIN32)
   _mkdir("saves");
 #else
-  mkdir("saves", 755);
+  mkdir("saves", 0755);
 #endif
 
   SetSnes(snes);
@@ -426,6 +424,7 @@ static void HandleCommand(uint32 j, bool pressed) {
     case kKeys_ZoomIn: DoZoom(1); break;
     case kKeys_ZoomOut: DoZoom(-1); break;
     case kKeys_DisplayPerf: g_display_perf ^= 1; break;
+    case kKeys_ToggleRenderer: g_zenv.ppu->newRenderer ^= 1; break;
     default: assert(0);
     }
   }

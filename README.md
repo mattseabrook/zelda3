@@ -27,6 +27,7 @@ I got much assistance from spannierism's Zelda 3 JP disassembly and the other on
 
 ## Compiling
 
+Look at the wiki at https://github.com/snesrev/zelda3/wiki for more help.
 
 ### Windows
 First extract and compile resources.
@@ -90,6 +91,8 @@ Additionally, the following commands are available:
 | O   | Set dungeon key to 1  |
 | K   | Clear all input history from the joypad log  |
 | L   | Stop replaying a shapshot  |
+| R   | Toggle between fast and slow renderer |
+| F   | Display renderer performance |
 | F1-F10 | Load snapshot      |
 | Alt+Enter | Toggle Fullscreen     |
 | Shift+F1-F10 | Save snapshot |
