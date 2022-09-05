@@ -20,7 +20,6 @@
 #include "zelda_rtl.h"
 #include "config.h"
 
-extern Ppu *GetPpuForRendering();
 extern Dsp *GetDspForRendering();
 extern Snes *g_snes;
 extern uint8 g_emulated_ram[0x20000];
@@ -29,6 +28,7 @@ bool g_run_without_emu = false;
 static int g_input1_state;
 static bool g_display_perf;
 static int g_curr_fps;
+static int g_ppu_render_flags = 0;
 
 void PatchRom(uint8 *rom);
 void SetSnes(Snes *snes);
@@ -48,8 +48,8 @@ static void OpenOneGamepad(int i);
 
 
 enum {
-  kRenderWidth = 512,
-  kRenderHeight = 480,
+  kRenderWidth = 256 * 2,
+  kRenderHeight = 224 * 2,
   kDefaultZoom = 2,
 };
 
@@ -125,10 +125,32 @@ enum {
   kSnesSamplesPerBlock = (534 * kSampleRate) / 32000,
 };
 
+static bool RenderScreenWithPerf(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
+  bool rv;
+  if (g_display_perf) {
+    static float history[64], average;
+    static int history_pos;
+    uint64 before = SDL_GetPerformanceCounter();
+    rv = ZeldaDrawPpuFrame(pixel_buffer, pitch, render_flags);
+    uint64 after = SDL_GetPerformanceCounter();
+    float v = (double)SDL_GetPerformanceFrequency() / (after - before);
+    average += v - history[history_pos];
+    history[history_pos] = v;
+    history_pos = (history_pos + 1) & 63;
+    g_curr_fps = average * (1.0f / 64);
+  } else {
+    rv = ZeldaDrawPpuFrame(pixel_buffer, pitch, render_flags);
+  }
+  return rv;
+}
+
+
 #undef main
 int main(int argc, char** argv) {
   ParseConfigFile();
   AfterConfigParse();
+
+  g_ppu_render_flags = g_config.new_renderer * kPpuRenderFlags_NewRenderer | g_config.enhanced_mode7 * kPpuRenderFlags_4x4Mode7;
 
   // set up SDL
   if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) != 0) {
@@ -148,8 +170,9 @@ int main(int argc, char** argv) {
     return 1;
   }
   g_renderer = renderer;
-  SDL_RenderSetLogicalSize(renderer, 512, 480); 
-  SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBX8888, SDL_TEXTUREACCESS_STREAMING, kRenderWidth, kRenderHeight);
+  if (!g_config.ignore_aspect_ratio)
+    SDL_RenderSetLogicalSize(renderer, kRenderWidth, kRenderHeight);
+  SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBX8888, SDL_TEXTUREACCESS_STREAMING, kRenderWidth * 2, kRenderHeight * 2);
   if(texture == NULL) {
     printf("Failed to create texture: %s\n", SDL_GetError());
     return 1;
@@ -258,21 +281,6 @@ int main(int argc, char** argv) {
     if (is_turbo)
       continue;
 
-    if (g_display_perf) {
-      static float history[64], average;
-      static int history_pos;
-      uint64 before = SDL_GetPerformanceCounter();
-      ZeldaDrawPpuFrame();
-      uint64 after = SDL_GetPerformanceCounter();
-      float v = (double)SDL_GetPerformanceFrequency() / (after - before);
-      average += v - history[history_pos];
-      history[history_pos] = v;
-      history_pos = (history_pos + 1) & 63;
-      g_curr_fps = average * (1.0f / 64);
-    } else {
-      ZeldaDrawPpuFrame();
-    }
-
     PlayAudio(snes_run, device, audioBuffer);
     RenderScreen(window, renderer, texture, (g_win_flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0);
 
@@ -329,7 +337,7 @@ static void PlayAudio(Snes *snes, SDL_AudioDeviceID device, int16 *audioBuffer) 
   }
 }
 
-static void RenderDigit(uint32 *dst, int digit, uint32 color) {
+static void RenderDigit(uint8 *dst, size_t pitch, int digit, uint32 color, bool big) {
   static const uint8 kFont[] = {
     0x1c, 0x36, 0x63, 0x63, 0x63, 0x63, 0x63, 0x63, 0x36, 0x1c,
     0x18, 0x1c, 0x1e, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7e,
@@ -343,38 +351,52 @@ static void RenderDigit(uint32 *dst, int digit, uint32 color) {
     0x3e, 0x63, 0x63, 0x63, 0x7e, 0x60, 0x60, 0x60, 0x30, 0x1e,
   };
   const uint8 *p = kFont + digit * 10;
-  for (int y = 0; y < 10; y++, dst += 512) {
-    int v = *p++;
-    for (int x = 0; v; x++, v>>=1) {
-      if (v & 1)
-        dst[x] = color;
+  if (!big) {
+    for (int y = 0; y < 10; y++, dst += pitch) {
+      int v = *p++;
+      for (int x = 0; v; x++, v >>= 1) {
+        if (v & 1)
+          ((uint32 *)dst)[x] = color;
+      }
+    }
+  } else {
+    for (int y = 0; y < 10; y++, dst += pitch * 2) {
+      int v = *p++;
+      for (int x = 0; v; x++, v >>= 1) {
+        if (v & 1) {
+          ((uint32 *)dst)[x * 2 + 1] = ((uint32 *)dst)[x * 2] = color;
+          ((uint32 *)(dst+pitch))[x * 2 + 1] = ((uint32 *)(dst + pitch))[x * 2] = color;
+        }
+      }
     }
   }
 }
 
-static void RenderNumber(uint32 *dst, int n) {
+static void RenderNumber(uint8 *dst, size_t pitch, int n, bool big) {
   char buf[32], *s;
   int i;
   sprintf(buf, "%d", n);
-  for (s = buf, i = 2; *s; s++, i += 8)
-    RenderDigit(dst + 513 + i, *s - '0', 0x40404000);
-  for (s = buf, i = 2; *s; s++, i += 8)
-    RenderDigit(dst + i, *s - '0', 0xffffff00);
+  for (s = buf, i = 2 * 4; *s; s++, i += 8 * 4)
+    RenderDigit(dst + ((pitch + i + 4) << big), pitch, *s - '0', 0x40404000, big);
+  for (s = buf, i = 2 * 4; *s; s++, i += 8 * 4)
+    RenderDigit(dst + (i << big), pitch, *s - '0', 0xffffff00, big);
 }
 
 static void RenderScreen(SDL_Window *window, SDL_Renderer *renderer, SDL_Texture *texture, bool fullscreen) {
-  void* pixels = NULL;
+  uint8* pixels = NULL;
   int pitch = 0;
-  if(SDL_LockTexture(texture, NULL, &pixels, &pitch) != 0) {
+  if(SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch) != 0) {
     printf("Failed to lock texture: %s\n", SDL_GetError());
     return;
   }
-  ppu_putPixels(GetPpuForRendering(), (uint8_t*) pixels);
+  bool hq = RenderScreenWithPerf(pixels, pitch, g_ppu_render_flags);
   if (g_display_perf)
-    RenderNumber((uint32 *)pixels + 512*2, g_curr_fps);
+    RenderNumber(pixels + (pitch*2<<hq), pitch, g_curr_fps, hq);
   SDL_UnlockTexture(texture);
   SDL_RenderClear(renderer);
-  SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+  SDL_Rect src_rect = { 0, 0, kRenderWidth, kRenderHeight };
+  SDL_RenderCopy(renderer, texture, hq ? NULL : &src_rect, NULL);
 }
 
 static void HandleCommand(uint32 j, bool pressed) {
@@ -398,6 +420,7 @@ static void HandleCommand(uint32 j, bool pressed) {
   } else {
     switch (j) {
     case kKeys_CheatLife: PatchCommand('w'); break;
+    case kKeys_CheatEquipment: PatchCommand('W'); break;
     case kKeys_CheatKeys: PatchCommand('o'); break;
     case kKeys_ClearKeyLog: PatchCommand('k'); break;
     case kKeys_StopReplay: PatchCommand('l'); break;
@@ -424,7 +447,7 @@ static void HandleCommand(uint32 j, bool pressed) {
     case kKeys_ZoomIn: DoZoom(1); break;
     case kKeys_ZoomOut: DoZoom(-1); break;
     case kKeys_DisplayPerf: g_display_perf ^= 1; break;
-    case kKeys_ToggleRenderer: g_zenv.ppu->newRenderer ^= 1; break;
+    case kKeys_ToggleRenderer: g_ppu_render_flags ^= kPpuRenderFlags_NewRenderer; break;
     default: assert(0);
     }
   }

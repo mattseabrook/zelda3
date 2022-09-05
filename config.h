@@ -17,6 +17,7 @@ enum {
   kKeys_ReplayRef_Last = kKeys_ReplayRef + 19,
   kKeys_CheatLife,
   kKeys_CheatKeys,
+  kKeys_CheatEquipment,
   kKeys_ClearKeyLog,
   kKeys_StopReplay,
   kKeys_Fullscreen,
@@ -30,6 +31,14 @@ enum {
   kKeys_ToggleRenderer,
   kKeys_Total,
 };
+
+typedef struct Config {
+  bool enhanced_mode7;
+  bool new_renderer;
+  bool ignore_aspect_ratio;
+} Config;
+
+extern Config g_config;
 
 uint8 *ReadFile(const char *name, size_t *length);
 void ParseConfigFile();

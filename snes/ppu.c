@@ -22,11 +22,11 @@ static int ppu_getPixelForMode7(Ppu* ppu, int x, int layer, bool priority);
 static bool ppu_getWindowState(Ppu* ppu, int layer, int x);
 static bool ppu_evaluateSprites(Ppu* ppu, int line);
 static uint16_t ppu_getVramRemap(Ppu* ppu);
+static void PpuDrawWholeLine(Ppu *ppu, uint y);
 
 Ppu* ppu_init(Snes* snes) {
   Ppu* ppu = (Ppu * )malloc(sizeof(Ppu));
   ppu->snes = snes;
-  ppu->newRenderer = true;
   return ppu;
 }
 
@@ -130,37 +130,43 @@ void ppu_reset(Ppu* ppu) {
   ppu->countersLatched = false;
   ppu->ppu1openBus = 0;
   ppu->ppu2openBus = 0;
-  memset(ppu->pixelBuffer, 0, sizeof(ppu->pixelBuffer));
 }
 
 void ppu_saveload(Ppu *ppu, SaveLoadFunc *func, void *ctx) {
   func(ctx, &ppu->vram, offsetof(Ppu, mosaicModulo) - offsetof(Ppu, vram));
 }
 
-void ppu_handleVblank(Ppu* ppu) {
-  // called either right after ppu_checkOverscan at (0,225), or at (0,240)
-  if(!ppu->forcedBlank) {
-    ppu->oamAdr = ppu->oamAdrWritten;
-    ppu->oamInHigh = ppu->oamInHighWritten;
-    ppu->oamSecondWrite = false;
+bool PpuBeginDrawing(Ppu *ppu, uint8_t *pixels, size_t pitch, uint32_t render_flags) {
+  ppu->renderFlags = render_flags;
+  bool hq = ppu->mode == 7 && !ppu->forcedBlank && 
+      (ppu->renderFlags & (kPpuRenderFlags_4x4Mode7 | kPpuRenderFlags_NewRenderer)) == (kPpuRenderFlags_4x4Mode7 | kPpuRenderFlags_NewRenderer);
+  ppu->renderPitch = (uint)pitch;
+  ppu->renderBuffer = pixels;
+
+  // Cache the brightness computation
+  if (ppu->brightness != ppu->lastBrightnessMult) {
+    uint8_t ppu_brightness = ppu->brightness;
+    ppu->lastBrightnessMult = ppu_brightness;
+    for (int i = 0; i < 32; i++)
+      ppu->brightnessMultHalf[i * 2] = ppu->brightnessMultHalf[i * 2 + 1] = ppu->brightnessMult[i] =
+      ((i << 3) | (i >> 2)) * ppu_brightness / 15;
+    // Store 31 extra entries to remove the need for clamping to 31.
+    memset(&ppu->brightnessMult[32], ppu->brightnessMult[31], 31);
   }
-  ppu->frameInterlace_always_zero = ppu->interlace_always_zero; // set if we have a interlaced frame
+
+  if (hq) {
+    for (int i = 0; i < 256; i++) {
+      uint32 color = ppu->cgram[i];
+      ppu->colorMapRgb[i] = ppu->brightnessMult[color & 0x1f] << 24 | ppu->brightnessMult[(color >> 5) & 0x1f] << 16 | ppu->brightnessMult[(color >> 10) & 0x1f] << 8;
+    }
+  }
+
+  
+  return hq;
 }
 
-static void PpuDrawWholeLine(Ppu *ppu, uint y);
-
-void ppu_runLine(Ppu* ppu, int line) {
+void ppu_runLine(Ppu *ppu, int line) {
   if(line == 0) {
-
-    // Ensure all window layer fields are just 0 or 1
-    for (int i = 0; i < 6; i++) {
-      WindowLayer *wl = &ppu->windowLayer[i];
-      wl->window1enabled = (wl->window1enabled != 0);
-      wl->window2enabled = (wl->window2enabled != 0);
-      wl->window1inversed = (wl->window1inversed != 0);
-      wl->window2inversed = (wl->window2inversed != 0);
-    }
-
     ppu->rangeOver = false;
     ppu->timeOver = false;
     ppu->evenFrame = !ppu->evenFrame;
@@ -179,15 +185,17 @@ void ppu_runLine(Ppu* ppu, int line) {
     ppu->lineHasSprites = !ppu->forcedBlank && ppu_evaluateSprites(ppu, line - 1);
 
     // actual line
-    if (ppu->newRenderer) {
+    if (ppu->renderFlags & kPpuRenderFlags_NewRenderer) {
       PpuDrawWholeLine(ppu, line);
     } else {
       if (ppu->mode == 7)
         ppu_calculateMode7Starts(ppu, line);
-      for (int x = 0; x < 256; x++) {
+      for (int x = 0; x < 256; x++)
         ppu_handlePixel(ppu, x, line);
-      }
+      uint8 *dst = ppu->renderBuffer + ((line - 1) * 2 * ppu->renderPitch);
+      memcpy(dst + ppu->renderPitch, dst, 512 * 4);
     }
+
   }
 }
 
@@ -682,6 +690,86 @@ static void PpuDrawBackground_mode7(Ppu *ppu, uint y, bool sub, uint8 z) {
   }
 }
 
+uint16 g_mode7_lo, g_mode7_hi;
+void PpuSetMode7PerspectiveCorrection(Ppu *ppu, int low, int high) {
+  ppu->mode7PerspectiveLow = low ? 1.0f / low : 0.0f;
+  ppu->mode7PerspectiveHigh = 1.0f / high;
+}
+
+static FORCEINLINE float FloatInterpolate(float x, float xmin, float xmax, float ymin, float ymax) {
+  return ymin + (ymax - ymin) * (x - xmin) * (1.0f / (xmax - xmin));
+}
+
+// Upsampled version of mode7 rendering. Draws everything in 4x the normal resolution.
+// Draws directly to the pixel buffer and bypasses any math, and supports only
+// a subset of the normal features (all that zelda needs)
+static void PpuDrawMode7Upsampled(Ppu *ppu, uint y) {
+  // expand 13-bit values to signed values
+  uint32 xCenter = ((int16_t)(ppu->m7matrix[4] << 3)) >> 3, yCenter = ((int16_t)(ppu->m7matrix[5] << 3)) >> 3;
+  uint32 clippedH = (((int16_t)(ppu->m7matrix[6] << 3)) >> 3) - xCenter;
+  uint32 clippedV = (((int16_t)(ppu->m7matrix[7] << 3)) >> 3) - yCenter;
+  uint32 m0 = ppu->m7matrix[0];  // xpos increment per horiz movement
+  uint32 m3 = ppu->m7matrix[3];  // ypos increment per vert movement
+  uint8 *dst_start = &ppu->renderBuffer[(y - 1) * 4 * ppu->renderPitch], *dst_end, *dst = dst_start;
+  int32 m0v[4];
+  if (*(uint32*)&ppu->mode7PerspectiveLow == 0) {
+    m0v[0] = m0v[1] = m0v[2] = m0v[3] = ppu->m7matrix[0] << 12;
+  } else {
+    static const float kInterpolateOffsets[4] = { -1, -1 + 0.25f, -1 + 0.5f, -1 + 0.75f };
+    for (int i = 0; i < 4; i++)
+      m0v[i] = 4096.0f / FloatInterpolate((int)y + kInterpolateOffsets[i], 0, 223, ppu->mode7PerspectiveLow, ppu->mode7PerspectiveHigh);
+  }
+
+  for (int j = 0; j < 4; j++) {
+    m0 = m3 = m0v[j];
+    uint32 m1 = ppu->m7matrix[1] << 12;  // xpos increment per vert movement
+    uint32 m2 = ppu->m7matrix[2] << 12;  // ypos increment per horiz movement
+    uint32 xpos = m0 * clippedH + m1 * (clippedV + y) + (xCenter << 20), xcur;
+    uint32 ypos = m2 * clippedH + m3 * (clippedV + y) + (yCenter << 20), ycur;
+
+    uint32 tile, pixel;
+    xpos -= (m0 + m1) >> 1;
+    ypos -= (m2 + m3) >> 1;
+    xcur = (xpos << 2) + j * m1;
+    ycur = (ypos << 2) + j * m3;
+    dst_end = dst + 4096;
+
+#define DRAW_PIXEL() \
+    tile = ppu->vram[(ycur >> 25 & 0x7f) * 128 + (xcur >> 25 & 0x7f)] & 0xff;  \
+    pixel = ppu->vram[tile * 64 + (ycur >> 22 & 7) * 8 + (xcur >> 22 & 7)] >> 8; \
+    *(uint32*)dst = ppu->colorMapRgb[pixel]; \
+    xcur += m0, ycur += m2, dst += 4;
+
+    do {
+      DRAW_PIXEL();
+      DRAW_PIXEL();
+      DRAW_PIXEL();
+      DRAW_PIXEL();
+    } while (dst != dst_end);
+#undef DRAW_PIXEL
+    dst += (ppu->renderPitch - 4096);
+  }
+
+  if (ppu->lineHasSprites) {
+    uint8 *pixels = ppu->objBuffer.pixel;
+    size_t pitch = ppu->renderPitch;
+    for (size_t i = 0; i < 256; i++) {
+      uint32 pixel = pixels[i];
+      if (pixel) {
+        uint32 color = ppu->colorMapRgb[pixel];
+        uint8 *dst = dst_start + i * 16;
+
+        ((uint32 *)dst)[3] = ((uint32 *)dst)[2] = ((uint32 *)dst)[1] = ((uint32 *)dst)[0] = color;
+        ((uint32 *)(dst + pitch * 1))[3] = ((uint32 *)(dst + pitch * 1))[2] = ((uint32 *)(dst + pitch * 1))[1] = ((uint32 *)(dst + pitch * 1))[0] = color;
+        ((uint32 *)(dst + pitch * 2))[3] = ((uint32 *)(dst + pitch * 2))[2] = ((uint32 *)(dst + pitch * 2))[1] = ((uint32 *)(dst + pitch * 2))[0] = color;
+        ((uint32 *)(dst + pitch * 3))[3] = ((uint32 *)(dst + pitch * 3))[2] = ((uint32 *)(dst + pitch * 3))[1] = ((uint32 *)(dst + pitch * 3))[0] = color;
+      }
+    }
+  }
+
+#undef DRAW_PIXEL
+}
+
 static void PpuDrawBackgrounds(Ppu *ppu, int y, bool sub) {
 // Top 4 bits contain the prio level, and bottom 4 bits the layer type.
 // SPRITE_PRIO_TO_PRIO can be used to convert from obj prio to this prio.
@@ -726,26 +814,20 @@ static void PpuDrawBackgrounds(Ppu *ppu, int y, bool sub) {
 
 static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
   if (ppu->forcedBlank) {
-    int row = (y - 1) + (ppu->evenFrame ? 0 : 239);
-    uint8_t *dst = &ppu->pixelBuffer[row * 2048];
+    uint8 *dst = &ppu->renderBuffer[(y - 1) * 2 * ppu->renderPitch];
+    size_t pitch = ppu->renderPitch;
     for (int i = 0; i < 256; i++, dst += 8) {
-      dst[1] = dst[5] = 0;
-      dst[2] = dst[6] = 0;
-      dst[3] = dst[7] = 0;
+      ((uint32*)dst)[1] = ((uint32 *)dst)[0] = 0;
+      ((uint32*)(dst + pitch))[1] = ((uint32*)(dst + pitch))[0] = 0;
     }
     return;
   }
 
-  // Cache the brightness computation
-  if (ppu->brightness != ppu->lastBrightnessMult) {
-    uint8_t ppu_brightness = ppu->brightness;
-    ppu->lastBrightnessMult = ppu_brightness;
-    for (int i = 0; i < 32; i++)
-      ppu->brightnessMultHalf[i * 2] = ppu->brightnessMultHalf[i * 2 + 1] = ppu->brightnessMult[i] =
-          ((i << 3) | (i >> 2)) * ppu_brightness / 15;
-    // Store 31 extra entries to remove the need for clamping to 31.
-    memset(&ppu->brightnessMult[32], ppu->brightnessMult[31], 31);
+  if (ppu->mode == 7 && (ppu->renderFlags & kPpuRenderFlags_4x4Mode7)) {
+    PpuDrawMode7Upsampled(ppu, y);
+    return;
   }
+
 
   // Default background is backdrop
   memset(&ppu->bgBuffers[0].pixel, 0, sizeof(ppu->bgBuffers[0].pixel));
@@ -780,8 +862,7 @@ static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
   uint32 cw_clip_math = ((cwin.bits & kCwBitsMod[ppu->clipMode]) ^ kCwBitsMod[ppu->clipMode + 4]) |
                         ((cwin.bits & kCwBitsMod[ppu->preventMathMode]) ^ kCwBitsMod[ppu->preventMathMode + 4]) << 8;
 
-  int row = (y - 1) + (ppu->evenFrame ? 0 : 239);
-  uint32 *dst = (uint32*)&ppu->pixelBuffer[row * 2048];
+  uint32 *dst = (uint32*)&ppu->renderBuffer[(y - 1) * 2 * ppu->renderPitch];
   
   uint32 windex = 0;
   do {
@@ -836,6 +917,10 @@ static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
       } while (dst += 2, ++i < right);
     }
   } while (cw_clip_math >>= 1, ++windex < cwin.nr);
+
+  // Duplicate one line
+  memcpy((uint8*)(dst - 512) + ppu->renderPitch, dst - 512, 512 * 4);
+
 }
 
 static void ppu_handlePixel(Ppu* ppu, int x, int y) {
@@ -890,13 +975,16 @@ static void ppu_handlePixel(Ppu* ppu, int x, int y) {
       r2 = r; g2 = g; b2 = b;
     }
   }
-  int row = (y - 1) + (ppu->evenFrame ? 0 : 239);
-  ppu->pixelBuffer[row * 2048 + x * 8 + 1] = ((b2 << 3) | (b2 >> 2)) * ppu->brightness / 15;
-  ppu->pixelBuffer[row * 2048 + x * 8 + 2] = ((g2 << 3) | (g2 >> 2)) * ppu->brightness / 15;
-  ppu->pixelBuffer[row * 2048 + x * 8 + 3] = ((r2 << 3) | (r2 >> 2)) * ppu->brightness / 15;
-  ppu->pixelBuffer[row * 2048 + x * 8 + 5] = ((b << 3) | (b >> 2)) * ppu->brightness / 15;
-  ppu->pixelBuffer[row * 2048 + x * 8 + 6] = ((g << 3) | (g >> 2)) * ppu->brightness / 15;
-  ppu->pixelBuffer[row * 2048 + x * 8 + 7] = ((r << 3) | (r >> 2)) * ppu->brightness / 15;
+  int row = y - 1;
+  uint8 *pixelBuffer = (uint8*) &ppu->renderBuffer[row * 2 * ppu->renderPitch + x * 8];
+  pixelBuffer[0] = 0;
+  pixelBuffer[1] = ((b2 << 3) | (b2 >> 2)) * ppu->brightness / 15;
+  pixelBuffer[2] = ((g2 << 3) | (g2 >> 2)) * ppu->brightness / 15;
+  pixelBuffer[3] = ((r2 << 3) | (r2 >> 2)) * ppu->brightness / 15;
+  pixelBuffer[4] = 0;
+  pixelBuffer[5] = ((b << 3) | (b >> 2)) * ppu->brightness / 15;
+  pixelBuffer[6] = ((g << 3) | (g >> 2)) * ppu->brightness / 15;
+  pixelBuffer[7] = ((r << 3) | (r >> 2)) * ppu->brightness / 15;
 }
 
 static const int bitDepthsPerMode[10][4] = {
@@ -1636,14 +1724,3 @@ void ppu_write(Ppu* ppu, uint8_t adr, uint8_t val) {
   }
 }
 
-void ppu_putPixels(Ppu* ppu, uint8_t* pixels) {
-  for(int y = 0; y < 224; y++) {
-    int dest = y * 2 + 16;
-    int y1 = y + (ppu->evenFrame ? 0 : 239);
-    memcpy(pixels + (dest * 2048), &ppu->pixelBuffer[y1 * 2048], 2048);
-    memcpy(pixels + ((dest + 1) * 2048), &ppu->pixelBuffer[y1 * 2048], 2048);
-  }
-  // clear top 16 and last 16 lines
-  memset(pixels, 0, 2048 * 16);
-  memset(pixels + (464 * 2048), 0, 2048 * 16);
-}
