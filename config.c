@@ -33,7 +33,7 @@ static const uint16 kDefaultKbdControls[kKeys_Total] = {
   _(SDLK_1), _(SDLK_2), _(SDLK_3), _(SDLK_4), _(SDLK_5), _(SDLK_6), _(SDLK_7), _(SDLK_8), _(SDLK_9), _(SDLK_0), _(SDLK_MINUS), _(SDLK_EQUALS), _(SDLK_BACKSPACE), N, N, N, N, N, N, N,
   // Replay Ref State
   C(SDLK_1), C(SDLK_2), C(SDLK_3), C(SDLK_4), C(SDLK_5), C(SDLK_6), C(SDLK_7), C(SDLK_8), C(SDLK_9), C(SDLK_0), C(SDLK_MINUS), C(SDLK_EQUALS), C(SDLK_BACKSPACE), N, N, N, N, N, N, N,
-  // CheatLife, CheatKeys, CheatEquipment, ClearKeyLog, StopReplay, Fullscreen, Reset, Pause, PauseDimmed, Turbo, ZoomIn, ZoomOut, DisplayPerf, ToggleRenderer
+  // CheatLife, CheatKeys, CheatEquipment, ClearKeyLog, StopReplay, Fullscreen, Reset, Pause, PauseDimmed, Turbo, WindowBigger, WindowSmaller, DisplayPerf, ToggleRenderer
   _(SDLK_w), _(SDLK_o), S(SDLK_w), _(SDLK_k), _(SDLK_l), A(SDLK_RETURN), _(SDLK_e), S(SDLK_p), _(SDLK_p), _(SDLK_t), N, N, _(SDLK_f), _(SDLK_r),
 };
 #undef _
@@ -52,7 +52,7 @@ typedef struct KeyNameId {
 static const KeyNameId kKeyNameId[] = {
   M(Controls), M(Load), M(Save), M(Replay), M(LoadRef), M(ReplayRef),
   S(CheatLife), S(CheatKeys), S(CheatEquipment), S(ClearKeyLog), S(StopReplay), S(Fullscreen), S(Reset),
-  S(Pause), S(PauseDimmed), S(Turbo), S(ZoomIn), S(ZoomOut), S(DisplayPerf), S(ToggleRenderer),
+  S(Pause), S(PauseDimmed), S(Turbo), S(WindowBigger), S(WindowSmaller), S(DisplayPerf), S(ToggleRenderer),
 };
 #undef S
 #undef M
@@ -190,6 +190,10 @@ static int GetIniSection(const char *s) {
     return 0;
   if (StringEqualsNoCase(s, "[Graphics]"))
     return 1;
+  if (StringEqualsNoCase(s, "[Sound]"))
+    return 2;
+  if (StringEqualsNoCase(s, "[General]"))
+    return 3;
   return -1;
 }
 
@@ -204,13 +208,38 @@ static bool HandleIniConfig(int section, const char *key, char *value) {
     }
   } else if (section == 1) {
     if (StringEqualsNoCase(key, "EnhancedMode7")) {
-      g_config.enhanced_mode7 = atoi(value);
+      g_config.enhanced_mode7 = (bool)strtol(value, (char**)NULL, 10);
       return true;
     } else if (StringEqualsNoCase(key, "NewRenderer")) {
-      g_config.new_renderer = atoi(value);
+      g_config.new_renderer = (bool)strtol(value, (char**)NULL, 10);
       return true;
     } else if (StringEqualsNoCase(key, "IgnoreAspectRatio")) {
-      g_config.ignore_aspect_ratio = atoi(value);
+      g_config.ignore_aspect_ratio = (bool)strtol(value, (char**)NULL, 10);
+      return true;
+    } else if (StringEqualsNoCase(key, "Fullscreen")) {
+      g_config.fullscreen = (uint8)strtol(value, (char**)NULL, 10);
+      return true;
+    } else if (StringEqualsNoCase(key, "WindowScale")) {
+      g_config.window_scale = (uint8)strtol(value, (char**)NULL, 10);
+      return true;
+    }
+  } else if (section == 2) {
+    if (StringEqualsNoCase(key, "AudioFreq")) {
+      g_config.audio_freq = (uint16)strtol(value, (char**)NULL, 10);
+      return true;
+    } else if (StringEqualsNoCase(key, "AudioChannels")) {
+      g_config.audio_channels = (uint8)strtol(value, (char**)NULL, 10);
+      return true;
+    } else if (StringEqualsNoCase(key, "AudioSamples")) {
+      g_config.audio_samples = (uint16)strtol(value, (char**)NULL, 10);
+      return true;
+    }
+  } else if (section == 3) {
+    if (StringEqualsNoCase(key, "Autosave")) {
+      g_config.autosave = (bool)strtol(value, (char**)NULL, 10);
+      return true;
+    } else if (StringEqualsNoCase(key, "DisplayPerfInTitle")) {
+      g_config.display_perf_title = (bool)strtol(value, (char**)NULL, 10);
       return true;
     }
 
@@ -236,6 +265,23 @@ uint8 *ReadFile(const char *name, size_t *length) {
   if (length) *length = size;
   return buffer;
 }
+
+/*
+uint8 *WriteFile(const char *name) {
+  FILE *f = fopen(name, "w");
+  if (f == NULL)
+    return NULL;
+}
+
+void SaveConfigFile() {
+  uint8* file = ReadFile("zelda3.user.ini", NULL);
+  if (!file) {
+    file = ReadFile("zelda3.ini", NULL);
+    if (!file)
+      return;
+  }
+}
+*/
 
 void ParseConfigFile() {
   uint8 *file = ReadFile("zelda3.user.ini", NULL);

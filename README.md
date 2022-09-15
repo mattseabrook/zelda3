@@ -23,7 +23,7 @@ I got much assistance from spannierism's Zelda 3 JP disassembly and the other on
 - a `tables/zelda3.sfc` US ROM file (for asset extraction step only)
   - SHA256 : `66871d66be19ad2c34c927d6b14cd8eb6fc3181965b6e517cb361f7316009cfb`. 
 - The `pillow` and `pyyaml` python dependencies used by the assets extractor.
-  - `pip install pillow pyyaml`
+  - `python -m pip install -r requirements.txt`
 
 ## Compiling
 
@@ -86,8 +86,11 @@ Additionally, the following commands are available:
 | --- | --------------------- |
 | W   | Fill health/magic     |
 | Shift+W   | Fill rupees/bombs/arrows     |
-| E   | Hard reset            |
-| P   | Pause                 |
+| Ctrl+E | Reset            |
+| P   | Pause (with dim)                |
+| Shift+P   | Pause (without dim)                |
+| Ctrl+Up   | Increase window size                |
+| Ctrl+Down   | Decrease window size                |
 | T   | Toggle replay turbo   |
 | O   | Set dungeon key to 1  |
 | K   | Clear all input history from the joypad log  |
