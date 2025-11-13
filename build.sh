@@ -684,12 +684,21 @@ TARGET_OS=$TARGET_OS"
   # Collect object files
   local objects=()
   for src in "${sources[@]}"; do
+    local obj=""
     if [[ "$TARGET_OS" == "windows" ]]; then
-      objects+=("$OBJ_DIR/$(basename "${src%.c}").obj")
+      obj="$OBJ_DIR/$(basename "${src%.c}").obj"
     else
-      objects+=("$OBJ_DIR/$(basename "${src%.c}").o")
+      obj="$OBJ_DIR/$(basename "${src%.c}").o"
+    fi
+    # Verify object file exists before adding
+    if [[ -f "$obj" ]]; then
+      objects+=("$obj")
+    else
+      warn "Object file missing: $obj (source: $src)"
     fi
   done
+  
+  echo "Collected ${#objects[@]} object files for linking"
   
   # Linking
   banner "${EMOJI_WRENCH} Linking"
@@ -697,6 +706,8 @@ TARGET_OS=$TARGET_OS"
   if [[ "$TARGET_OS" == "windows" ]]; then
     local output="$PROJECT_ROOT/zelda3.exe"
     
+    # clang-cl syntax: clang-cl [objects] [compile flags] /link [linker flags]
+    # All object files MUST come before /link
     local linker_args=(
       "/subsystem:windows"
       "/defaultlib:libcmt"
@@ -712,11 +723,58 @@ TARGET_OS=$TARGET_OS"
       "shell32.lib"
     )
     
-    # Add SDL2 libs
-    [[ -n "$SDL2_LIBS" ]] && linker_args+=("$SDL2_LIBS")
+    # Add SDL2 libs to linker args
+    if [[ -n "$SDL2_LIBS" ]]; then
+      # Split SDL2_LIBS into individual tokens
+      # shellcheck disable=SC2206
+      linker_args+=($SDL2_LIBS)
+    fi
     
     echo "Linking ${output}..."
-    clang-cl --target="$TARGET_TRIPLE" -fuse-ld=lld-link "${objects[@]}" -o "$output" /link "${linker_args[@]}" || die "Linking failed"
+    echo "  Object files: ${#objects[@]} files"
+    
+    if [[ ${#objects[@]} -eq 0 ]]; then
+      die "No object files found to link!"
+    fi
+    
+    # Bypass clang-cl and invoke lld-link directly (more reliable on Linux)
+    # Build full linker command for lld-link
+    local lld_args=(
+      "/out:$output"
+      "/subsystem:windows"
+      "/entry:mainCRTStartup"
+      "/defaultlib:libcmt"
+      "/defaultlib:libucrt"
+      "/nodefaultlib:msvcrt.lib"
+      "/libpath:$DETECTED_SDK_LIB/um/$DETECTED_LIB_ARCH"
+      "/libpath:$DETECTED_SDK_LIB/ucrt/$DETECTED_LIB_ARCH"
+      "/libpath:$DETECTED_CRT_LIB/$DETECTED_LIB_ARCH"
+      "user32.lib"
+      "gdi32.lib"
+      "opengl32.lib"
+      "winmm.lib"
+      "shell32.lib"
+      "advapi32.lib"
+      "ole32.lib"
+      "oleaut32.lib"
+      "imm32.lib"
+      "setupapi.lib"
+      "hid.lib"
+      "version.lib"
+    )
+    
+    # Add SDL2 libs
+    if [[ -n "$SDL2_LIBS" ]]; then
+      # shellcheck disable=SC2206
+      lld_args+=($SDL2_LIBS)
+    fi
+    
+    # Create response file for object files
+    local rsp_file="$BUILD_DIR/link_objects.rsp"
+    printf '"%s"\n' "${objects[@]}" > "$rsp_file"
+    
+    echo "  Using lld-link directly with response file"
+    lld-link @"$rsp_file" "${lld_args[@]}" || die "Linking failed"
     
   else
     local output="$PROJECT_ROOT/zelda3"
