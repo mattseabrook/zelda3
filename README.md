@@ -1,9 +1,12 @@
-# Zelda3
 A reimplementation of Zelda 3.
 
 Our discord server is: https://discord.gg/AJJbJAzNNJ
 
-## About
+**Table-of-Contents**
+1. [About](#about)
+2. [Additional features](#additional-features)
+
+# About
 
 This is a reverse engineered clone of Zelda 3 - A Link to the Past.
 
@@ -16,7 +19,7 @@ Additionally, it can be configured to also run the original machine code side by
 
 I got much assistance from spannerism's Zelda 3 JP disassembly and the other ones that documented loads of function names and variables.
 
-## Additional features
+# Additional features
 
 A bunch of features have been added that are not supported by the original game. Some of them are:
 
@@ -149,28 +152,28 @@ The keys can be reconfigured in zelda3.ini
 
 Additionally, the following commands are available:
 
-| Key | Action                |
-| --- | --------------------- |
-| Tab | Turbo mode |
-| W   | Fill health/magic     |
-| Shift+W   | Fill rupees/bombs/arrows     |
-| Ctrl+E | Reset            |
-| P   | Pause (with dim)                |
-| Shift+P   | Pause (without dim)                |
-| Ctrl+Up   | Increase window size                |
-| Ctrl+Down   | Decrease window size                |
-| T   | Toggle replay turbo mode  |
-| O   | Set dungeon key to 1  |
-| K   | Clear all input history from the joypad log  |
-| L   | Stop replaying a shapshot  |
-| R   | Toggle between fast and slow renderer |
-| F   | Display renderer performance |
-| F1-F10 | Load snapshot      |
-| Alt+Enter | Toggle Fullscreen     |
-| Shift+F1-F10 | Save snapshot |
-| Ctrl+F1-F10 | Replay the snapshot |
-| 1-9 | Load a dungeons playthrough snapshot |
-| Ctrl+1-9 | Run a dungeons playthrough in turbo mode |
+| Key          | Action                                      |
+| ------------ | ------------------------------------------- |
+| Tab          | Turbo mode                                  |
+| W            | Fill health/magic                           |
+| Shift+W      | Fill rupees/bombs/arrows                    |
+| Ctrl+E       | Reset                                       |
+| P            | Pause (with dim)                            |
+| Shift+P      | Pause (without dim)                         |
+| Ctrl+Up      | Increase window size                        |
+| Ctrl+Down    | Decrease window size                        |
+| T            | Toggle replay turbo mode                    |
+| O            | Set dungeon key to 1                        |
+| K            | Clear all input history from the joypad log |
+| L            | Stop replaying a shapshot                   |
+| R            | Toggle between fast and slow renderer       |
+| F            | Display renderer performance                |
+| F1-F10       | Load snapshot                               |
+| Alt+Enter    | Toggle Fullscreen                           |
+| Shift+F1-F10 | Save snapshot                               |
+| Ctrl+F1-F10  | Replay the snapshot                         |
+| 1-9          | Load a dungeons playthrough snapshot        |
+| Ctrl+1-9     | Run a dungeons playthrough in turbo mode    |
 
 
 ## License

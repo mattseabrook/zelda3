@@ -78,18 +78,27 @@ brew install sdl2 python3
 python3 -m pip install Pillow PyYAML
 ```
 
-### Windows (Cross-compile from Linux)
+### Windows (Cross-compile from Linux using clang-cl)
 ```bash
-# Install MinGW-w64 cross-compiler
-sudo apt install mingw-w64 mingw-w64-tools
+# Install Clang/LLVM
+sudo apt install clang lld llvm
 
-# Install SDL2 for MinGW (Ubuntu example)
-sudo apt install libsdl2-dev  # For headers
-# Then manually install MinGW SDL2 libraries
+# Install Rust (for xwin tool)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install xwin (downloads Windows SDK)
+cargo install xwin
+
+# xwin will auto-install Windows SDK to /opt/winsdk on first build
+# You also need SDL2 built for Windows - see examples/build_windows_libs.sh
 
 # Build for Windows
 TARGET_OS=windows ./build.sh
+
+# Output: zelda3.exe (native Windows binary, MSVC ABI compatible)
 ```
+
+**Note**: This uses clang-cl + lld-link, NOT MinGW. Produces true native Windows executables.
 
 ---
 

@@ -258,9 +258,14 @@ Accurate SNES hardware emulation for PPU/APU/DSP:
 - **OpenGL 3.1+**: Hardware acceleration (falls back to software)
 - **MSU-1 Audio Files**: Enhanced CD-quality music
 
-### 5.3 Cross-Compilation (Windows from Linux)
-- **MinGW-w64**: Cross-compiler for Windows targets
-- **mingw-w64-SDL2**: SDL2 libraries for MinGW
+### 5.3 Cross-Compilation (Windows from Linux - clang-cl Method)
+- **Clang/LLVM**: LLVM compiler suite with clang-cl (MSVC-compatible driver)
+- **lld-link**: LLVM's Windows-compatible linker
+- **xwin**: Tool to download and extract Windows SDK on Linux
+- **Windows SDK**: Microsoft's official SDK (headers + libraries)
+- **SDL2 for Windows**: SDL2 compiled with clang-cl or prebuilt MSVC binaries
+
+**Note**: This uses **clang-cl** (MSVC ABI), NOT MinGW. Produces true native Windows executables.
 
 ---
 
@@ -280,8 +285,8 @@ The new unified build system follows the pattern from your `speedboards.sh`:
 ### 6.2 Key Features
 
 **Platform Support**:
-- Native Linux/macOS builds
-- Windows cross-compilation (MinGW-w64)
+- Native Linux/macOS builds (GCC/Clang)
+- Windows cross-compilation (clang-cl + lld-link, MSVC ABI)
 - Automatic toolchain detection
 
 **Asset Extraction**:
@@ -308,10 +313,10 @@ The new unified build system follows the pattern from your `speedboards.sh`:
 # Extract assets only
 ./build.sh assets
 
-# Windows cross-compile from Linux
+# Windows cross-compile from Linux (clang-cl, MSVC ABI)
 TARGET_OS=windows ./build.sh
 
-# Use Clang with 16 parallel jobs
+# Native Linux build with Clang
 CC=clang JOBS=16 ./build.sh
 
 # Clean rebuild

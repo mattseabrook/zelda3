@@ -230,139 +230,287 @@ extract_assets_c() {
 
 # --- SDL2 Detection -------------------------------------------------------
 detect_sdl2() {
-  if command -v sdl2-config >/dev/null 2>&1; then
-    SDL2_CFLAGS="$(sdl2-config --cflags)"
-    SDL2_LIBS="$(sdl2-config --libs)"
-    return 0
-  fi
-  
-  # Windows cross-compile fallback
   if [[ "$TARGET_OS" == "windows" ]]; then
-    # Try pkg-config for mingw
-    if command -v x86_64-w64-mingw32-pkg-config >/dev/null 2>&1; then
-      SDL2_CFLAGS="$(x86_64-w64-mingw32-pkg-config --cflags sdl2 2>/dev/null || echo "")"
-      SDL2_LIBS="$(x86_64-w64-mingw32-pkg-config --libs sdl2 2>/dev/null || echo "")"
-      [[ -n "$SDL2_LIBS" ]] && return 0
-    fi
-    
-    # Hardcoded fallback for Windows
-    warn "SDL2 not found via pkg-config, using manual detection"
-    local sdl_paths=(
-      "/usr/x86_64-w64-mingw32/sys-root/mingw/include/SDL2"
-      "/usr/local/x86_64-w64-mingw32/include/SDL2"
+    # For Windows cross-compile, we need SDL2 built for Windows
+    # User should build SDL2 with clang-cl or provide prebuilt binaries
+    local sdl2_paths=(
+      "/opt/windows-libs/SDL2"
+      "$PROJECT_ROOT/third_party/SDL2"
     )
-    for path in "${sdl_paths[@]}"; do
-      if [[ -d "$path" ]]; then
-        SDL2_CFLAGS="-I$path -D_THREAD_SAFE"
-        SDL2_LIBS="-lmingw32 -lSDL2main -lSDL2 -mwindows"
+    
+    for path in "${sdl2_paths[@]}"; do
+      if [[ -d "$path/include" && -d "$path/lib" ]]; then
+        SDL2_CFLAGS="-I$path/include"
+        SDL2_LIBS="$path/lib/SDL2.lib $path/lib/SDL2main.lib"
+        info "Found SDL2 for Windows at: $path"
         return 0
       fi
     done
+    
+    warn "SDL2 for Windows not found. You need to either:"
+    warn "  1. Build SDL2 with clang-cl (see examples/build_windows_libs.sh)"
+    warn "  2. Download SDL2-devel-VC.zip and extract to /opt/windows-libs/SDL2"
+    die "SDL2 Windows libraries required for cross-compilation"
+  else
+    # Native Linux/macOS build
+    if command -v sdl2-config >/dev/null 2>&1; then
+      SDL2_CFLAGS="$(sdl2-config --cflags)"
+      SDL2_LIBS="$(sdl2-config --libs)"
+      info "SDL2 found via sdl2-config"
+      return 0
+    fi
+    
+    die "SDL2 not found! Install with:\n\
+      Ubuntu/Debian: sudo apt install libsdl2-dev\n\
+      Fedora: sudo dnf install SDL2-devel\n\
+      Arch: sudo pacman -S sdl2\n\
+      macOS: brew install sdl2"
+  fi
+}
+
+# --- Compilation Helper Functions -----------------------------------------
+needs_compile() {
+  local src="$1"
+  local obj="$2"
+  local dep_file="$BUILD_DIR/$(basename "${src%.c}").d"
+  
+  [[ ! -f "$obj" ]] && return 0
+  [[ "$src" -nt "$obj" ]] && return 0
+  [[ ! -s "$obj" ]] && return 0
+  
+  # Check dependencies
+  if [[ -f "$dep_file" ]]; then
+    while read -r dep; do
+      dep=$(echo "$dep" | sed 's/^[^:]*:\s*//' | tr ' ' '\n' | head -1)
+      [[ -z "$dep" ]] && continue
+      [[ "$dep" -nt "$obj" ]] && return 0
+    done < "$dep_file"
   fi
   
-  die "SDL2 not found! Install with:\n\
-    Ubuntu/Debian: sudo apt install libsdl2-dev\n\
-    Fedora: sudo dnf install SDL2-devel\n\
-    Arch: sudo pacman -S sdl2\n\
-    Windows (MinGW): pacman -S mingw-w64-x86_64-SDL2"
+  return 1
+}
+
+compile_batch() {
+  local batch_sources=("$@")
+  local pids=()
+  local temp_outputs=()
+  local obj_ext=".o"
+  [[ "$TARGET_OS" == "windows" ]] && obj_ext=".obj"
+  
+  for src in "${batch_sources[@]}"; do
+    obj="$OBJ_DIR/$(basename "${src%.c}")${obj_ext}"
+    
+    if needs_compile "$src" "$obj"; then
+      local temp_out="$BUILD_DIR/$(basename "${src%.c}").compile.tmp"
+      temp_outputs+=("$temp_out")
+      
+      {
+        if "$CC" -c "$src" -o "$obj" "${CFLAGS[@]}" 2>"$temp_out"; then
+          echo -e "  ${COLOR_GREEN}${EMOJI_SUCCESS} $(basename "$src")${COLOR_RESET}" > "$temp_out.status"
+        else
+          echo -e "  ${COLOR_RED}${EMOJI_FAILED} FAILED: $(basename "$src")${COLOR_RESET}" > "$temp_out.status"
+          echo "1" > "$temp_out.failed"
+        fi
+      } &
+      pids+=($!)
+    else
+      echo -e "  ${COLOR_DIM}${EMOJI_CACHED} $(basename "$src") (cached)${COLOR_RESET}"
+    fi
+  done
+  
+  # Wait for all jobs
+  local any_failed=0
+  for pid in "${pids[@]}"; do
+    wait "$pid" || any_failed=1
+  done
+  
+  # Print outputs
+  for temp_out in "${temp_outputs[@]}"; do
+    [[ -f "$temp_out.status" ]] && cat "$temp_out.status"
+    [[ -s "$temp_out" ]] && cat "$temp_out" >> "$BUILD_LOG"
+    [[ -f "$temp_out.failed" ]] && any_failed=1
+    rm -f "$temp_out" "$temp_out.status" "$temp_out.failed"
+  done
+  
+  return $any_failed
 }
 
 # --- Compilation ----------------------------------------------------------
 compile() {
-  banner "${EMOJI_WRENCH} Compiling Zelda3"
+  banner "${EMOJI_FIRE} Compiling Zelda3"
   
   mkdir -p "$OBJ_DIR"
+  init_log
   
   # Detect SDL2
   detect_sdl2
-  info "SDL2 found: $SDL2_CFLAGS"
-  
-  # Compiler flags
-  local cflags="-O2 -I. -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 $SDL2_CFLAGS"
-  local ldflags="$SDL2_LIBS"
-  
-  # Platform-specific flags
-  if [[ "$TARGET_OS" == "windows" ]]; then
-    cflags="$cflags -D_WIN32 -DWIN32"
-    ldflags="$ldflags -lopengl32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi"
-  else
-    ldflags="$ldflags -lm -ldl"
-    if [[ "$(uname)" == "Linux" ]]; then
-      ldflags="$ldflags -lGL"
-    elif [[ "$(uname)" == "Darwin" ]]; then
-      ldflags="$ldflags -framework OpenGL -framework CoreAudio -framework AudioToolbox"
-    fi
-  fi
-  
-  # Output executable
-  local output="$PROJECT_ROOT/zelda3"
-  [[ "$TARGET_OS" == "windows" ]] && output="$PROJECT_ROOT/zelda3.exe"
   
   # Source files
-  local sources=(
-    src/*.c
-    snes/*.c
-    third_party/gl_core/gl_core_3_1.c
-    third_party/opus-1.3.1-stripped/opus_decoder_amalgam.c
-  )
+  local sources=()
+  sources+=($(find src -name "*.c" | sort))
+  sources+=($(find snes -name "*.c" | sort))
+  sources+=(third_party/gl_core/gl_core_3_1.c)
+  sources+=(third_party/opus-1.3.1-stripped/opus_decoder_amalgam.c)
   
-  # Object files
-  local objs=()
-  local src_files=()
-  for pattern in "${sources[@]}"; do
-    for src in $pattern; do
-      [[ -f "$src" ]] && src_files+=("$src")
-    done
-  done
+  echo "Found ${#sources[@]} source files"
   
-  echo "Compiling ${#src_files[@]} source files with $JOBS parallel jobs..."
-  
-  # Compile in parallel
-  local failed=0
-  local compiled=0
-  local total=${#src_files[@]}
-  
-  compile_one() {
-    local src="$1"
-    local obj="$OBJ_DIR/$(echo "$src" | tr '/' '_' | sed 's/\.c$/.o/')"
+  # Build for Windows (clang-cl cross-compile)
+  if [[ "$TARGET_OS" == "windows" ]]; then
+    banner "${EMOJI_WRENCH} Windows Cross-Compile (clang-cl + lld-link)"
     
-    # Check if recompilation needed
-    if [[ -f "$obj" && "$obj" -nt "$src" ]]; then
-      return 0
-    fi
+    # Setup Windows SDK
+    setup_winsdk
     
-    if $CC $cflags -c "$src" -o "$obj" 2>&1; then
-      return 0
+    # Build system includes (use -imsvc for system headers)
+    local system_includes=()
+    [[ -d "$DETECTED_CRT_INCLUDE" ]] && system_includes+=("-imsvc$DETECTED_CRT_INCLUDE")
+    
+    if [[ -d "$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION" ]]; then
+      system_includes+=(
+        "-imsvc$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/ucrt"
+        "-imsvc$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/um"
+        "-imsvc$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/shared"
+      )
     else
-      return 1
+      system_includes+=(
+        "-imsvc$DETECTED_SDK_INCLUDE/ucrt"
+        "-imsvc$DETECTED_SDK_INCLUDE/um"
+        "-imsvc$DETECTED_SDK_INCLUDE/shared"
+      )
     fi
-  }
-  
-  export -f compile_one
-  export CC cflags OBJ_DIR
-  
-  if command -v parallel >/dev/null 2>&1; then
-    # Use GNU parallel if available
-    printf "%s\n" "${src_files[@]}" | parallel -j "$JOBS" compile_one || die "Compilation failed"
+    
+    # User includes (use -I for project headers)
+    local user_includes=("-I." "-I./src" "-I./snes" "-I./third_party")
+    [[ -n "$SDL2_CFLAGS" ]] && user_includes+=("$SDL2_CFLAGS")
+    
+    # Compiler flags (MSVC-style for clang-cl)
+    export CFLAGS=(
+      "--target=$TARGET_TRIPLE"
+      "-fuse-ld=lld-link"
+      "${system_includes[@]}"
+      "${user_includes[@]}"
+      "/MT"  # Static CRT
+      "/O2"  # Optimize
+      "/DNDEBUG"
+      "/DUNICODE"
+      "/D_UNICODE"
+      "/DWIN32"
+      "/D_WIN32"
+      "/DSYSTEM_VOLUME_MIXER_AVAILABLE=0"
+      "-fms-compatibility"
+      "-fms-compatibility-version=19.37"
+      "-Wno-unused-command-line-argument"
+    )
+    
+    export CC="clang-cl"
+    
+    # Set environment variables for header/library lookup
+    local include_paths="" lib_paths=""
+    [[ -d "$DETECTED_CRT_INCLUDE" ]] && include_paths+="$DETECTED_CRT_INCLUDE;"
+    [[ -d "$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/um" ]] && include_paths+="$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/um;"
+    [[ -d "$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/shared" ]] && include_paths+="$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/shared;"
+    [[ -d "$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/ucrt" ]] && include_paths+="$DETECTED_SDK_INCLUDE/$DETECTED_SDK_VERSION/ucrt;"
+    
+    [[ -d "$DETECTED_CRT_LIB/$DETECTED_LIB_ARCH" ]] && lib_paths+="$DETECTED_CRT_LIB/$DETECTED_LIB_ARCH;"
+    [[ -d "$DETECTED_SDK_LIB/um/$DETECTED_LIB_ARCH" ]] && lib_paths+="$DETECTED_SDK_LIB/um/$DETECTED_LIB_ARCH;"
+    [[ -d "$DETECTED_SDK_LIB/ucrt/$DETECTED_LIB_ARCH" ]] && lib_paths+="$DETECTED_SDK_LIB/ucrt/$DETECTED_LIB_ARCH;"
+    
+    export INCLUDE="$include_paths"
+    export LIB="$lib_paths"
+    
   else
-    # Fallback: compile sequentially
-    for src in "${src_files[@]}"; do
-      printf "  [%3d/%3d] %s\n" "$((++compiled))" "$total" "$(basename "$src")"
-      compile_one "$src" || die "Failed to compile $src"
-    done
+    # Build for Linux/macOS (native)
+    banner "${EMOJI_WRENCH} Native Linux/macOS Build"
+    
+    export CFLAGS=(
+      "-O2"
+      "-I."
+      "-Isrc"
+      "-Isnes"
+      "-Ithird_party"
+      $SDL2_CFLAGS
+      "-DSYSTEM_VOLUME_MIXER_AVAILABLE=0"
+      "-Wall"
+      "-Wno-unused-function"
+    )
+    
+    export CC="${CC:-gcc}"
   fi
   
-  # Collect object files
-  for src in "${src_files[@]}"; do
-    local obj="$OBJ_DIR/$(echo "$src" | tr '/' '_' | sed 's/\.c$/.o/')"
-    objs+=("$obj")
+  # Detect flag changes
+  flags_file="$BUILD_DIR/.cflags"
+  new_flags="CC=$CC
+CFLAGS=${CFLAGS[*]}
+TARGET_OS=$TARGET_OS"
+  
+  if [[ ! -f "$flags_file" ]] || ! cmp -s <(printf "%s" "$new_flags") "$flags_file"; then
+    warn "Build flags changed, forcing full rebuild"
+    printf "%s" "$new_flags" > "$flags_file"
+    rm -f "$OBJ_DIR"/*.o "$OBJ_DIR"/*.obj
+  fi
+  
+  # Parallel compilation
+  START_TIME=$(date +%s)
+  BATCH_SIZE=$JOBS
+  
+  for ((i=0; i<${#sources[@]}; i+=BATCH_SIZE)); do
+    batch=("${sources[@]:i:BATCH_SIZE}")
+    compile_batch "${batch[@]}" || die "Compilation failed"
   done
   
-  info "Compiled ${#objs[@]} object files"
+  END_TIME=$(date +%s)
+  info "Compilation completed in $((END_TIME - START_TIME))s"
   
-  # Link
-  echo "Linking..."
-  $CC "${objs[@]}" -o "$output" $ldflags || die "Linking failed"
+  # Collect object files
+  local objects=()
+  for src in "${sources[@]}"; do
+    if [[ "$TARGET_OS" == "windows" ]]; then
+      objects+=("$OBJ_DIR/$(basename "${src%.c}").obj")
+    else
+      objects+=("$OBJ_DIR/$(basename "${src%.c}").o")
+    fi
+  done
+  
+  # Linking
+  banner "${EMOJI_WRENCH} Linking"
+  
+  if [[ "$TARGET_OS" == "windows" ]]; then
+    local output="$PROJECT_ROOT/zelda3.exe"
+    
+    local linker_args=(
+      "/subsystem:windows"
+      "/defaultlib:libcmt"
+      "/defaultlib:libucrt"
+      "/nodefaultlib:msvcrt.lib"
+      "/libpath:$DETECTED_SDK_LIB/um/$DETECTED_LIB_ARCH"
+      "/libpath:$DETECTED_SDK_LIB/ucrt/$DETECTED_LIB_ARCH"
+      "/libpath:$DETECTED_CRT_LIB/$DETECTED_LIB_ARCH"
+      "user32.lib"
+      "gdi32.lib"
+      "opengl32.lib"
+      "winmm.lib"
+      "shell32.lib"
+    )
+    
+    # Add SDL2 libs
+    [[ -n "$SDL2_LIBS" ]] && linker_args+=("$SDL2_LIBS")
+    
+    echo "Linking ${output}..."
+    clang-cl --target="$TARGET_TRIPLE" -fuse-ld=lld-link "${objects[@]}" -o "$output" /link "${linker_args[@]}" || die "Linking failed"
+    
+  else
+    local output="$PROJECT_ROOT/zelda3"
+    
+    local ldflags=("$SDL2_LIBS" "-lm" "-ldl")
+    if [[ "$(uname)" == "Linux" ]]; then
+      ldflags+=("-lGL")
+    elif [[ "$(uname)" == "Darwin" ]]; then
+      ldflags+=("-framework OpenGL" "-framework CoreAudio" "-framework AudioToolbox")
+    fi
+    
+    echo "Linking ${output}..."
+    $CC "${objects[@]}" -o "$output" "${ldflags[@]}" || die "Linking failed"
+  fi
   
   info "Built: $output ($(du -h "$output" | cut -f1))"
 }
@@ -426,11 +574,17 @@ ${COLOR_CYAN}REQUIREMENTS:${COLOR_RESET}
   - SDL2 development libraries
   - GCC or Clang compiler
 
-${COLOR_CYAN}WINDOWS CROSS-COMPILE:${COLOR_RESET}
-  Install MinGW-w64:
-    Ubuntu: sudo apt install mingw-w64
-    Fedora: sudo dnf install mingw64-gcc mingw64-SDL2
+${COLOR_CYAN}WINDOWS CROSS-COMPILE (clang-cl + xwin):${COLOR_RESET}
+  Install requirements:
+    1. Clang/LLVM: sudo apt install clang lld llvm
+    2. Rust (for xwin): curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    3. xwin: cargo install xwin
+    4. SDL2 for Windows: Build with clang-cl or download SDL2-devel-VC.zip
+  
   Then run: TARGET_OS=windows ./build.sh
+  
+  This produces true native Windows .exe files (MSVC ABI compatible)
+  No MinGW required!
 
 EOF
 }
