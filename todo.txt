@@ -1,0 +1,4 @@
+1. Confirm SDL usage and describe rendering pipeline (OpenGL etc) ✅
+2. Compare example/src/window.cpp aspect-ratio logic with current Zelda build handling ✅
+3. Confirm build outputs native Windows exe without MinGW/MSYS2 dependencies and update README developer section ✅
+4. Plan approach for embedding zelda3_assets.dat into exe ↻ next

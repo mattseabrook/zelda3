@@ -3,8 +3,19 @@ A reimplementation of Zelda 3.
 Our discord server is: https://discord.gg/AJJbJAzNNJ
 
 **Table-of-Contents**
-1. [About](#about)
-2. [Additional features](#additional-features)
+- [About](#about)
+- [Additional features](#additional-features)
+- [Usage and controls](#usage-and-controls)
+- [License](#license)
+- [Developers](#developers)
+- [Legacy build instructions](#legacy-build-instructions)
+  - [Installing Python \& libraries on Windows (required for asset extraction steps)](#installing-python--libraries-on-windows-required-for-asset-extraction-steps)
+  - [Compiling on Windows with TCC (1mb Tiny C Compiler)](#compiling-on-windows-with-tcc-1mb-tiny-c-compiler)
+  - [Compiling on Windows with Visual Studio (4.5gb IDE and compiler)](#compiling-on-windows-with-visual-studio-45gb-ide-and-compiler)
+  - [Installing libraries on Linux/MacOS](#installing-libraries-on-linuxmacos)
+  - [Compiling on Linux/MacOS](#compiling-on-linuxmacos)
+  - [Nintendo Switch](#nintendo-switch)
+  - [More Compilation Help](#more-compilation-help)
 
 # About
 
@@ -35,13 +46,77 @@ Secondary item slot on button X (Hold X in inventory to select).
 
 Switching current item with L/R keys.
 
-## How to Play:
+# Usage and controls
 
-Option 1: Launcher by RadzPrower (windows only) https://github.com/ajohns6/Zelda-3-Launcher
+The game supports snapshots. The joypad input history is also saved in the snapshot. It's thus possible to replay a playthrough in turbo mode to verify that the game behaves correctly.
 
-Option 2: Building it yourself
+The game is run with `./zelda3` and takes an optional path to the ROM-file, which will verify for each frame that the C code matches the original behavior.
 
-Visit Wiki for more info on building the project: https://github.com/snesrev/zelda3/wiki
+| Button | Key         |
+| ------ | ----------- |
+| Up     | Up arrow    |
+| Down   | Down arrow  |
+| Left   | Left arrow  |
+| Right  | Right arrow |
+| Start  | Enter       |
+| Select | Right shift |
+| A      | X           |
+| B      | Z           |
+| X      | S           |
+| Y      | A           |
+| L      | C           |
+| R      | V           |
+
+The keys can be reconfigured in zelda3.ini
+
+Additionally, the following commands are available:
+
+| Key          | Action                                      |
+| ------------ | ------------------------------------------- |
+| Tab          | Turbo mode                                  |
+| W            | Fill health/magic                           |
+| Shift+W      | Fill rupees/bombs/arrows                    |
+| Ctrl+E       | Reset                                       |
+| P            | Pause (with dim)                            |
+| Shift+P      | Pause (without dim)                         |
+| Ctrl+Up      | Increase window size                        |
+| Ctrl+Down    | Decrease window size                        |
+| T            | Toggle replay turbo mode                    |
+| O            | Set dungeon key to 1                        |
+| K            | Clear all input history from the joypad log |
+| L            | Stop replaying a shapshot                   |
+| R            | Toggle between fast and slow renderer       |
+| F            | Display renderer performance                |
+| F1-F10       | Load snapshot                               |
+| Alt+Enter    | Toggle Fullscreen                           |
+| Shift+F1-F10 | Save snapshot                               |
+| Ctrl+F1-F10  | Replay the snapshot                         |
+| 1-9          | Load a dungeons playthrough snapshot        |
+| Ctrl+1-9     | Run a dungeons playthrough in turbo mode    |
+
+# License
+
+This project is licensed under the MIT license. See 'LICENSE.txt' for details.
+
+# Developers
+
+### Unified build entrypoints
+- `./build.sh` (Linux/macOS): extracts assets on demand, then builds the native SDL/OpenGL binary `./zelda3`.
+- `TARGET_OS=windows ./build.sh` (Linux/macOS): cross-compiles a **fully native** `zelda3.exe` using `clang-cl`, `lld-link`, and the MSVC CRT (no MinGW/MSYS2).
+
+### Prerequisites (auto-installed when missing)
+- Python 3 with Pillow and PyYAML – fetched automatically the first time assets are extracted.
+- Windows cross-build: LLVM/Clang, Rust’s Cargo (for `xwin`), and an SDL2 SDK are pulled/built into `/opt/windows-libs/SDL2` on demand.
+
+### Typical workflow
+1. Drop the verified US ROM (`zelda3.sfc`) into the project root.
+2. Run `./build.sh` for a native binary, or `TARGET_OS=windows ./build.sh` for `zelda3.exe`.
+3. Artifacts live in the project root, while intermediates land in `build/`.
+4. Re-run the same command any time; the script caches assets, SDL2, and object files for quick incremental builds.
+
+> **Heads up:** The legacy sections below are kept for historical context, but day-to-day work should use `build.sh`.
+
+# Legacy build instructions
 
 ## Installing Python & libraries on Windows (required for asset extraction steps)
 1. Download [Python](https://www.python.org/ftp/python/3.11.1/python-3.11.1-amd64.exe) installer and install with "Add to PATH" checkbox checked
@@ -127,55 +202,3 @@ The ROM needs to be named `zelda3.sfc` and has to be from the US region with thi
 
 In case you're planning to move the executable to a different location, please include the file `zelda3_assets.dat`.
 
-## Usage and controls
-
-The game supports snapshots. The joypad input history is also saved in the snapshot. It's thus possible to replay a playthrough in turbo mode to verify that the game behaves correctly.
-
-The game is run with `./zelda3` and takes an optional path to the ROM-file, which will verify for each frame that the C code matches the original behavior.
-
-| Button | Key         |
-| ------ | ----------- |
-| Up     | Up arrow    |
-| Down   | Down arrow  |
-| Left   | Left arrow  |
-| Right  | Right arrow |
-| Start  | Enter       |
-| Select | Right shift |
-| A      | X           |
-| B      | Z           |
-| X      | S           |
-| Y      | A           |
-| L      | C           |
-| R      | V           |
-
-The keys can be reconfigured in zelda3.ini
-
-Additionally, the following commands are available:
-
-| Key          | Action                                      |
-| ------------ | ------------------------------------------- |
-| Tab          | Turbo mode                                  |
-| W            | Fill health/magic                           |
-| Shift+W      | Fill rupees/bombs/arrows                    |
-| Ctrl+E       | Reset                                       |
-| P            | Pause (with dim)                            |
-| Shift+P      | Pause (without dim)                         |
-| Ctrl+Up      | Increase window size                        |
-| Ctrl+Down    | Decrease window size                        |
-| T            | Toggle replay turbo mode                    |
-| O            | Set dungeon key to 1                        |
-| K            | Clear all input history from the joypad log |
-| L            | Stop replaying a shapshot                   |
-| R            | Toggle between fast and slow renderer       |
-| F            | Display renderer performance                |
-| F1-F10       | Load snapshot                               |
-| Alt+Enter    | Toggle Fullscreen                           |
-| Shift+F1-F10 | Save snapshot                               |
-| Ctrl+F1-F10  | Replay the snapshot                         |
-| 1-9          | Load a dungeons playthrough snapshot        |
-| Ctrl+1-9     | Run a dungeons playthrough in turbo mode    |
-
-
-## License
-
-This project is licensed under the MIT license. See 'LICENSE.txt' for details.
