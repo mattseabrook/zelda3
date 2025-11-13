@@ -202,10 +202,32 @@ extract_assets_python() {
   
   # Check Python dependencies
   echo "Checking Python dependencies..."
+  local missing_deps=()
+  
   if ! $python_cmd -c "import PIL" 2>/dev/null; then
-    warn "Pillow not installed. Installing Python dependencies..."
-    $python_cmd -m pip install --user -q Pillow PyYAML || \
-      die "Failed to install Python dependencies. Run: $python_cmd -m pip install Pillow PyYAML"
+    missing_deps+=("Pillow")
+  fi
+  
+  if ! $python_cmd -c "import yaml" 2>/dev/null; then
+    missing_deps+=("PyYAML")
+  fi
+  
+  if [[ ${#missing_deps[@]} -gt 0 ]]; then
+    warn "Missing Python packages: ${missing_deps[*]}"
+    echo "Installing Python dependencies..."
+    
+    # Check if pip is available
+    if ! $python_cmd -m pip --version >/dev/null 2>&1; then
+      die "pip not found! Install with: $python_cmd -m ensurepip --default-pip"
+    fi
+    
+    # Install missing packages
+    $python_cmd -m pip install --user -q "${missing_deps[@]}" || \
+      die "Failed to install Python dependencies. Try manually: $python_cmd -m pip install ${missing_deps[*]}"
+    
+    info "Python dependencies installed successfully"
+  else
+    info "All Python dependencies satisfied"
   fi
   
   # Run extraction
@@ -228,29 +250,222 @@ extract_assets_c() {
   extract_assets_python
 }
 
+# --- SDL2 Build (Windows) ------------------------------------------------
+build_sdl2_windows() {
+  banner "${EMOJI_PACKAGE} Building SDL2 for Windows"
+  
+  local sdl2_version="2.28.5"
+  local sdl2_install="/opt/windows-libs/SDL2"
+  local build_dir="/tmp/sdl2-build"
+  
+  # Check if already built
+  if [[ -d "$sdl2_install/include" && -d "$sdl2_install/lib" ]]; then
+    if [[ -f "$sdl2_install/lib/SDL2.lib" && -f "$sdl2_install/lib/SDL2main.lib" ]]; then
+      info "SDL2 already built at: $sdl2_install"
+      return 0
+    fi
+  fi
+  
+  info "Building SDL2 ${sdl2_version} for Windows..."
+  
+  # Check build dependencies
+  need_cmd wget
+  need_cmd cmake
+  need_cmd clang-cl
+  need_cmd lld-link
+  need_cmd llvm-lib
+  
+  # Create directories
+  sudo mkdir -p "$sdl2_install"
+  sudo chown $USER:$USER "$sdl2_install"
+  mkdir -p "$build_dir"
+  
+  cd "$build_dir"
+  
+  # Download SDL2 if not present
+  if [[ ! -d "SDL2-${sdl2_version}" ]]; then
+    echo "Downloading SDL2 ${sdl2_version}..."
+    wget "https://github.com/libsdl-org/SDL/releases/download/release-${sdl2_version}/SDL2-${sdl2_version}.tar.gz" || \
+      die "Failed to download SDL2"
+    tar -xzf "SDL2-${sdl2_version}.tar.gz"
+  fi
+  
+  cd "SDL2-${sdl2_version}"
+  rm -rf build_windows
+  mkdir build_windows
+  cd build_windows
+  
+  # Create CMake toolchain file
+  local sdk_include="${DETECTED_SDK_INCLUDE:-$WINSDK_BASE/sdk/include}"
+  local sdk_lib="${DETECTED_SDK_LIB:-$WINSDK_BASE/sdk/lib}"
+  local crt_include="${DETECTED_CRT_INCLUDE:-$WINSDK_BASE/crt/include}"
+  local crt_lib="${DETECTED_CRT_LIB:-$WINSDK_BASE/crt/lib}"
+  local sdk_version="${DETECTED_SDK_VERSION:-10.0.26100}"
+  
+  # Build include flags for CMake
+  local cmake_include_flags=""
+  [[ -d "$crt_include" ]] && cmake_include_flags+="-imsvc ${crt_include} "
+  [[ -d "$sdk_include/$sdk_version/um" ]] && cmake_include_flags+="-imsvc ${sdk_include}/${sdk_version}/um "
+  [[ -d "$sdk_include/$sdk_version/shared" ]] && cmake_include_flags+="-imsvc ${sdk_include}/${sdk_version}/shared "
+  [[ -d "$sdk_include/$sdk_version/ucrt" ]] && cmake_include_flags+="-imsvc ${sdk_include}/${sdk_version}/ucrt "
+  
+  # Build lib flags for CMake
+  local cmake_lib_flags=""
+  [[ -d "$crt_lib/x86_64" ]] && cmake_lib_flags+="-libpath:${crt_lib}/x86_64 "
+  [[ -d "$sdk_lib/um/x86_64" ]] && cmake_lib_flags+="-libpath:${sdk_lib}/um/x86_64 "
+  [[ -d "$sdk_lib/ucrt/x86_64" ]] && cmake_lib_flags+="-libpath:${sdk_lib}/ucrt/x86_64 "
+  
+  # Build Windows library paths
+  local cmake_windows_libs="${cmake_lib_flags}"
+  [[ -f "$sdk_lib/um/x86_64/kernel32.lib" ]] && cmake_windows_libs+="${sdk_lib}/um/x86_64/kernel32.lib "
+  [[ -f "$sdk_lib/um/x86_64/user32.lib" ]] && cmake_windows_libs+="${sdk_lib}/um/x86_64/user32.lib "
+  [[ -f "$crt_lib/x86_64/libcmt.lib" ]] && cmake_windows_libs+="${crt_lib}/x86_64/libcmt.lib "
+  [[ -f "$sdk_lib/ucrt/x86_64/libucrt.lib" ]] && cmake_windows_libs+="${sdk_lib}/ucrt/x86_64/libucrt.lib "
+  
+  cat > windows-cross.cmake << EOF
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR AMD64)
+
+set(CMAKE_C_COMPILER clang-cl)
+set(CMAKE_CXX_COMPILER clang-cl)
+
+set(CMAKE_C_COMPILER_TARGET x86_64-pc-windows-msvc)
+set(CMAKE_CXX_COMPILER_TARGET x86_64-pc-windows-msvc)
+
+set(CMAKE_C_COMPILER_WORKS 1)
+set(CMAKE_CXX_COMPILER_WORKS 1)
+set(CMAKE_DETERMINE_C_ABI_COMPILED 1)
+set(CMAKE_DETERMINE_CXX_ABI_COMPILED 1)
+
+set(CMAKE_AR llvm-lib)
+set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> /OUT:<TARGET> <OBJECTS>")
+set(CMAKE_C_ARCHIVE_FINISH "")
+set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> /OUT:<TARGET> <OBJECTS>")
+set(CMAKE_CXX_ARCHIVE_FINISH "")
+
+set(CMAKE_C_FLAGS_INIT "-fuse-ld=lld-link $cmake_include_flags /MT -D_WIN32 -D_WIN64 -fms-compatibility -fms-compatibility-version=19.37")
+set(CMAKE_CXX_FLAGS_INIT "-fuse-ld=lld-link $cmake_include_flags /MT -D_WIN32 -D_WIN64 -fms-compatibility -fms-compatibility-version=19.37")
+
+set(CMAKE_C_FLAGS_RELEASE_INIT "-O2 -DNDEBUG -D_MT")
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O2 -DNDEBUG -D_MT")
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+
+set(CMAKE_EXE_LINKER_FLAGS_INIT "$cmake_windows_libs -DEFAULTLIB:libcmt.lib -NODEFAULTLIB:msvcrt.lib")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "$cmake_windows_libs -DEFAULTLIB:libcmt.lib -NODEFAULTLIB:msvcrt.lib")
+set(CMAKE_MODULE_LINKER_FLAGS_INIT "$cmake_windows_libs -DEFAULTLIB:libcmt.lib -NODEFAULTLIB:msvcrt.lib")
+
+set(CMAKE_C_STANDARD_LIBRARIES "$cmake_windows_libs")
+set(CMAKE_CXX_STANDARD_LIBRARIES "$cmake_windows_libs")
+
+set(CMAKE_FIND_ROOT_PATH "$WINSDK_BASE" "$sdl2_install")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+EOF
+  
+  # Set environment variables for clang-cl
+  local include_paths=""
+  [[ -d "$crt_include" ]] && include_paths+="$crt_include;"
+  [[ -d "$sdk_include/$sdk_version/um" ]] && include_paths+="$sdk_include/$sdk_version/um;"
+  [[ -d "$sdk_include/$sdk_version/shared" ]] && include_paths+="$sdk_include/$sdk_version/shared;"
+  [[ -d "$sdk_include/$sdk_version/ucrt" ]] && include_paths+="$sdk_include/$sdk_version/ucrt;"
+  
+  local lib_paths=""
+  [[ -d "$crt_lib/x86_64" ]] && lib_paths+="$crt_lib/x86_64;"
+  [[ -d "$sdk_lib/um/x86_64" ]] && lib_paths+="$sdk_lib/um/x86_64;"
+  [[ -d "$sdk_lib/ucrt/x86_64" ]] && lib_paths+="$sdk_lib/ucrt/x86_64;"
+  
+  export INCLUDE="$include_paths"
+  export LIB="$lib_paths"
+  
+  echo "Configuring SDL2 with CMake..."
+  cmake .. \
+    -DCMAKE_TOOLCHAIN_FILE=windows-cross.cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$sdl2_install" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DSDL_STATIC=ON \
+    -DSDL_SHARED=OFF \
+    -DSDL_TEST=OFF \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=OFF \
+    -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded || die "SDL2 CMake configuration failed"
+  
+  echo "Building SDL2..."
+  make -j$(nproc) || die "SDL2 build failed"
+  
+  echo "Installing SDL2..."
+  make install || die "SDL2 installation failed"
+  
+  # Normalize and verify installation
+  mkdir -p "$sdl2_install/lib"
+  # Try to locate SDL2 static lib in common install layouts and copy to a canonical name
+  SDL2_CANONICAL_LIB="$sdl2_install/lib/SDL2.lib"
+  found_sdl2=""
+  for candidate in \
+    "$sdl2_install/lib/SDL2.lib" \
+    "$sdl2_install/lib/SDL2-static.lib" \
+    "$sdl2_install/lib64/SDL2.lib" \
+    "$sdl2_install/lib64/SDL2-static.lib" \
+    "$sdl2_install/x64/lib/SDL2.lib" \
+    "$sdl2_install/x64/lib/SDL2-static.lib"; do
+    if [[ -f "$candidate" ]]; then
+      cp -f "$candidate" "$SDL2_CANONICAL_LIB"
+      found_sdl2="$SDL2_CANONICAL_LIB"
+      break
+    fi
+  done
+  # Optional SDL2main lib: copy if present to canonical location
+  for candidate in \
+    "$sdl2_install/lib/SDL2main.lib" \
+    "$sdl2_install/lib64/SDL2main.lib" \
+    "$sdl2_install/x64/lib/SDL2main.lib"; do
+    if [[ -f "$candidate" ]]; then
+      cp -f "$candidate" "$sdl2_install/lib/SDL2main.lib" 2>/dev/null || true
+      break
+    fi
+  done
+  
+  [[ -f "$found_sdl2" ]] || die "SDL2 build succeeded but libraries not found at: $sdl2_install/lib"
+  
+  info "SDL2 built successfully at: $sdl2_install"
+  info "SDL2.lib size: $(stat -c%s "$sdl2_install/lib/SDL2.lib" 2>/dev/null || stat -f%z "$sdl2_install/lib/SDL2.lib") bytes"
+}
+
 # --- SDL2 Detection -------------------------------------------------------
 detect_sdl2() {
   if [[ "$TARGET_OS" == "windows" ]]; then
-    # For Windows cross-compile, we need SDL2 built for Windows
-    # User should build SDL2 with clang-cl or provide prebuilt binaries
+    # For Windows cross-compile, check for prebuilt or build it
     local sdl2_paths=(
       "/opt/windows-libs/SDL2"
       "$PROJECT_ROOT/third_party/SDL2"
     )
     
     for path in "${sdl2_paths[@]}"; do
-      if [[ -d "$path/include" && -d "$path/lib" ]]; then
-        SDL2_CFLAGS="-I$path/include"
-        SDL2_LIBS="$path/lib/SDL2.lib $path/lib/SDL2main.lib"
+      if [[ -d "$path/include" && -f "$path/lib/SDL2.lib" ]]; then
+        # Include both include roots to support either layout (SDL.h or SDL2/SDL.h)
+        SDL2_CFLAGS="-I$path/include -I$path/include/SDL2"
+        SDL2_LIBS="$path/lib/SDL2.lib"
         info "Found SDL2 for Windows at: $path"
         return 0
       fi
     done
     
-    warn "SDL2 for Windows not found. You need to either:"
-    warn "  1. Build SDL2 with clang-cl (see examples/build_windows_libs.sh)"
-    warn "  2. Download SDL2-devel-VC.zip and extract to /opt/windows-libs/SDL2"
-    die "SDL2 Windows libraries required for cross-compilation"
+    # Not found - build it automatically
+    warn "SDL2 for Windows not found, building automatically..."
+    build_sdl2_windows
+    
+    # Check again after build
+    for path in "${sdl2_paths[@]}"; do
+      if [[ -d "$path/include" && -f "$path/lib/SDL2.lib" ]]; then
+        SDL2_CFLAGS="-I$path/include -I$path/include/SDL2"
+        SDL2_LIBS="$path/lib/SDL2.lib"
+        info "Using newly built SDL2 at: $path"
+        return 0
+      fi
+    done
+    
+    die "SDL2 build completed but libraries not found"
   else
     # Native Linux/macOS build
     if command -v sdl2-config >/dev/null 2>&1; then
@@ -381,7 +596,11 @@ compile() {
     
     # User includes (use -I for project headers)
     local user_includes=("-I." "-I./src" "-I./snes" "-I./third_party")
-    [[ -n "$SDL2_CFLAGS" ]] && user_includes+=("$SDL2_CFLAGS")
+    # Append SDL2 include tokens individually (not as one quoted string)
+    if [[ -n "$SDL2_CFLAGS" ]]; then
+      # shellcheck disable=SC2206
+      user_includes+=($SDL2_CFLAGS)
+    fi
     
     # Compiler flags (MSVC-style for clang-cl)
     export CFLAGS=(
@@ -392,6 +611,7 @@ compile() {
       "/MT"  # Static CRT
       "/O2"  # Optimize
       "/DNDEBUG"
+      "/DSDL_MAIN_HANDLED"  # Avoid dependency on SDL2main.lib
       "/DUNICODE"
       "/D_UNICODE"
       "/DWIN32"

@@ -11,6 +11,7 @@
 /assets/dungeon/*.yaml
 /assets/img/
 /assets/old/
+build/*
 /zelda3.sfc
 /zelda3.smc
 /saves/*.sav
@@ -31,3 +32,4 @@ __pycache__
 /sprites-gfx
 /glsl-shaders
 /token.txt
+*.sfc

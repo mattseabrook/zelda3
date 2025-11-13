@@ -1,0 +1,208 @@
+src/audio.c(198,11): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  198 |   mp->f = fopen(fname, "rb");
+      |           ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+1 warning generated.
+src/glsl_shader.c(53,13): warning: 'strdup' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details. [-Wdeprecated-declarations]
+   53 |     t->id = strdup(id);
+      |             ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(551,20): note: 'strdup' has been explicitly marked deprecated here
+  551 |     _Check_return_ _CRT_NONSTDC_DEPRECATE(_strdup)
+      |                    ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/glsl_shader.c(89,11): warning: 'strdup' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details. [-Wdeprecated-declarations]
+   89 |   p->id = strdup(id);
+      |           ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(551,20): note: 'strdup' has been explicitly marked deprecated here
+  551 |     _Check_return_ _CRT_NONSTDC_DEPRECATE(_strdup)
+      |                    ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/glsl_shader.c(367,28): warning: 'strdup' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details. [-Wdeprecated-declarations]
+  367 |     gs->pass[1].filename = strdup(filename);
+      |                            ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(551,20): note: 'strdup' has been explicitly marked deprecated here
+  551 |     _Check_return_ _CRT_NONSTDC_DEPRECATE(_strdup)
+      |                    ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+3 warnings generated.
+src/main.c(857,8): warning: 'getcwd' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _getcwd. See online help for details. [-Wdeprecated-declarations]
+  857 |   if (!getcwd(buf, sizeof(buf) - 32))
+      |        ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/direct.h(90,42): note: 'getcwd' has been explicitly marked deprecated here
+   90 |         _Check_return_ _Ret_maybenull_z_ _CRT_NONSTDC_DEPRECATE(_getcwd)
+      |                                          ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/main.c(863,15): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  863 |     FILE *f = fopen(buf, "rb");
+      |               ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/main.c(869,19): warning: 'chdir' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _chdir. See online help for details. [-Wdeprecated-declarations]
+  869 |         int err = chdir(buf);
+      |                   ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/direct.h(98,24): note: 'chdir' has been explicitly marked deprecated here
+   98 |         _Check_return_ _CRT_NONSTDC_DEPRECATE(_chdir)
+      |                        ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+3 warnings generated.
+src/messaging.c(2394,21): warning: passing arguments to 'VWF_RenderSingle' without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]
+ 2394 |     VWF_RenderSingle(TEXTCMD_PARAM(cmd));
+      |                     ^
+In file included from src/messaging.c:1:
+src/messaging.h(110,6): warning: a function declaration without a prototype is deprecated in all versions of C and is treated as a zero-parameter prototype in C23, conflicting with a subsequent definition [-Wdeprecated-non-prototype]
+  110 | void VWF_RenderSingle();
+      |      ^
+src/messaging.c(2512,6): note: conflicting prototype is here
+ 2512 | void VWF_RenderSingle(int c) {  // 8ecab8
+      |      ^
+2 warnings generated.
+src/platform/win32/volume_control.c(63,61): warning: incompatible pointer types passing 'IMMDeviceEnumerator **' (aka 'struct IMMDeviceEnumerator **') to parameter of type 'LPVOID *' (aka 'void **') [-Wincompatible-pointer-types]
+   63 |       NULL, CLSCTX_INPROC_SERVER, &IID_IMMDeviceEnumerator, &device_enumerator);
+      |                                                             ^~~~~~~~~~~~~~~~~~
+/opt/winsdk/sdk/include/10.0.26100/um/combaseapi.h(1011,90): note: passing argument to parameter 'ppv' here
+ 1011 |     _COM_Outptr_ _At_(*ppv, _Post_readable_size_(_Inexpressible_(varies))) LPVOID  FAR * ppv
+      |                                                                                          ^
+src/platform/win32/volume_control.c(71,94): warning: incompatible pointer types passing 'IAudioSessionManager **' (aka 'struct IAudioSessionManager **') to parameter of type 'void **' [-Wincompatible-pointer-types]
+   71 |   result = IMMDevice_Activate(device, &IID_IAudioSessionManager, CLSCTX_INPROC_SERVER, NULL, &audio_session_manager);
+      |                                                                                              ^~~~~~~~~~~~~~~~~~~~~~
+/opt/winsdk/sdk/include/10.0.26100/um/mmdeviceapi.h(532,70): note: expanded from macro 'IMMDevice_Activate'
+  532 |     ( (This)->lpVtbl -> Activate(This,iid,dwClsCtx,pActivationParams,ppInterface) ) 
+      |                                                                      ^~~~~~~~~~~
+2 warnings generated.
+src/util.c(42,13): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+   42 |   FILE *f = fopen(name, "rb");
+      |             ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/util.c(131,16): warning: 'strdup' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details. [-Wdeprecated-declarations]
+  131 |   char *news = strdup(s);
+      |                ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(551,20): note: 'strdup' has been explicitly marked deprecated here
+  551 |     _Check_return_ _CRT_NONSTDC_DEPRECATE(_strdup)
+      |                    ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/util.c(144,10): warning: 'strdup' is deprecated: The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details. [-Wdeprecated-declarations]
+  144 |   return strdup(buf);
+      |          ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(551,20): note: 'strdup' has been explicitly marked deprecated here
+  551 |     _Check_return_ _CRT_NONSTDC_DEPRECATE(_strdup)
+      |                    ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(273,50): note: expanded from macro '_CRT_NONSTDC_DEPRECATE'
+  273 |         #define _CRT_NONSTDC_DEPRECATE(_NewName) _CRT_DEPRECATE_TEXT(             \
+      |                                                  ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+3 warnings generated.
+src/zelda_rtl.c(267,24): warning: passing arguments to 'ppu_init' without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]
+  267 |   g_zenv.ppu = ppu_init(NULL);
+      |                        ^
+src/zelda_rtl.c(803,13): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  803 |   FILE *f = fopen(name, cmd != kSaveLoad_Save ? "rb" : "wb");
+      |             ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/zelda_rtl.c(872,13): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  872 |   FILE *f = fopen("saves/sram.dat", "rb");
+      |             ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+src/zelda_rtl.c(883,13): warning: 'fopen' is deprecated: This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  883 |   FILE *f = fopen("saves/sram.dat", "wb");
+      |             ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/stdio.h(204,16): note: 'fopen' has been explicitly marked deprecated here
+  204 | _Check_return_ _CRT_INSECURE_DEPRECATE(fopen_s)
+      |                ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+4 warnings generated.
+snes/snes.c(33,23): warning: passing arguments to 'ppu_init' without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]
+   33 |   snes->ppu = ppu_init(snes);
+      |                       ^
+1 warning generated.
+third_party/gl_core/gl_core_3_1.c(3093,3): warning: 'strncpy' is deprecated: This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+ 3093 |                 strncpy(strWorkBuff, strCurrPos, iStrLen);
+      |                 ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/string.h(340,1): note: 'strncpy' has been explicitly marked deprecated here
+  340 | __DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX(
+      | ^
+/opt/winsdk/sdk/include/10.0.26100/ucrt/corecrt.h(1807,13): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX'
+ 1807 |             _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1, _TType2 _TArg2);
+      |             ^
+/opt/winsdk/crt/include/vcruntime.h(368,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  368 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+/opt/winsdk/crt/include/vcruntime.h(358,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+1 warning generated.
