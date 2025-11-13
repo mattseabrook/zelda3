@@ -1,13 +1,15 @@
 A reimplementation of Zelda 3.
 
-Our discord server is: https://discord.gg/AJJbJAzNNJ
+Discord: https://discord.gg/AJJbJAzNNJ
 
 **Table-of-Contents**
 - [About](#about)
-- [Additional features](#additional-features)
+  - [Additional features](#additional-features)
 - [Usage and controls](#usage-and-controls)
-- [License](#license)
 - [Developers](#developers)
+    - [Unified build entrypoints](#unified-build-entrypoints)
+    - [Prerequisites (auto-installed when missing)](#prerequisites-auto-installed-when-missing)
+    - [Typical workflow](#typical-workflow)
 - [Legacy build instructions](#legacy-build-instructions)
   - [Installing Python \& libraries on Windows (required for asset extraction steps)](#installing-python--libraries-on-windows-required-for-asset-extraction-steps)
   - [Compiling on Windows with TCC (1mb Tiny C Compiler)](#compiling-on-windows-with-tcc-1mb-tiny-c-compiler)
@@ -30,7 +32,7 @@ Additionally, it can be configured to also run the original machine code side by
 
 I got much assistance from spannerism's Zelda 3 JP disassembly and the other ones that documented loads of function names and variables.
 
-# Additional features
+## Additional features
 
 A bunch of features have been added that are not supported by the original game. Some of them are:
 
@@ -94,10 +96,6 @@ Additionally, the following commands are available:
 | 1-9          | Load a dungeons playthrough snapshot        |
 | Ctrl+1-9     | Run a dungeons playthrough in turbo mode    |
 
-# License
-
-This project is licensed under the MIT license. See 'LICENSE.txt' for details.
-
 # Developers
 
 ### Unified build entrypoints
@@ -114,10 +112,8 @@ This project is licensed under the MIT license. See 'LICENSE.txt' for details.
 3. Artifacts live in the project root, while intermediates land in `build/`.
 4. Re-run the same command any time; the script caches assets, SDL2, and object files for quick incremental builds.
 
-> **Heads up:** The legacy sections below are kept for historical context, but day-to-day work should use `build.sh`.
-
 # Legacy build instructions
-
+> **Heads up:** The legacy sections below are kept for historical context, but day-to-day work should use `build.sh`.
 ## Installing Python & libraries on Windows (required for asset extraction steps)
 1. Download [Python](https://www.python.org/ftp/python/3.11.1/python-3.11.1-amd64.exe) installer and install with "Add to PATH" checkbox checked
 2. Open the command prompt
@@ -200,5 +196,5 @@ Look at the wiki at https://github.com/snesrev/zelda3/wiki for more help.
 The ROM needs to be named `zelda3.sfc` and has to be from the US region with this exact SHA256 hash
 `66871d66be19ad2c34c927d6b14cd8eb6fc3181965b6e517cb361f7316009cfb`
 
-In case you're planning to move the executable to a different location, please include the file `zelda3_assets.dat`.
+Executables produced via `./build.sh` already embed the asset data, so they can run standalone. Legacy project files (Visual Studio, TCC, etc.) still expect `zelda3_assets.dat` alongside the binary.
 

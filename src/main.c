@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "assets.h"
+#include "assets_blob.h"
 #include "load_gfx.h"
 #include "util.h"
 #include "audio.h"
@@ -810,32 +811,39 @@ uint32 g_asset_sizes[kNumberOfAssets];
 
 static void LoadAssets() {
   size_t length = 0;
-  uint8 *data = ReadWholeFile("zelda3_assets.dat", &length);
+  uint8 *mutable_data = ReadWholeFile("zelda3_assets.dat", &length);
+  const uint8 *data = mutable_data;
+
   if (!data) {
-    size_t bps_length, bps_src_length;
-    uint8 *bps, *bps_src;
-    bps = ReadWholeFile("zelda3_assets.bps", &bps_length);
-    if (!bps)
-      Die("Failed to read zelda3_assets.dat. Please see the README for information about how you get this file.");
-    bps_src = ReadWholeFile("zelda3.sfc", &bps_src_length);
-    if (!bps_src)
-      Die("Missing file: zelda3.sfc");
-    data = ApplyBps(bps_src, bps_src_length, bps, bps_length, &length);
-    if (!data)
-      Die("Unable to apply zelda3_assets.bps. Please make sure you got the right version of 'zelda3.sfc'");
+    size_t bps_length = 0, bps_src_length = 0;
+    uint8 *bps = ReadWholeFile("zelda3_assets.bps", &bps_length);
+    if (bps) {
+      uint8 *bps_src = ReadWholeFile("zelda3.sfc", &bps_src_length);
+      if (!bps_src)
+        Die("Missing file: zelda3.sfc");
+      mutable_data = ApplyBps(bps_src, bps_src_length, bps, bps_length, &length);
+      if (!mutable_data)
+        Die("Unable to apply zelda3_assets.bps. Please make sure you got the right version of 'zelda3.sfc'");
+      data = mutable_data;
+    } else {
+      data = g_zelda3_assets;
+      length = g_zelda3_assets_size;
+      if (length == 0)
+        Die("Embedded asset blob missing. Run ./build.sh assets to regenerate.");
+    }
   }
 
   static const char kAssetsSig[] = { kAssets_Sig };
 
   if (length < 16 + 32 + 32 + 8 + kNumberOfAssets * 4 ||
       memcmp(data, kAssetsSig, 48) != 0 ||
-      *(uint32*)(data + 80) != kNumberOfAssets)
+      *(const uint32 *)(data + 80) != kNumberOfAssets)
     Die("Invalid assets file");
 
-  uint32 offset = 88 + kNumberOfAssets * 4 + *(uint32 *)(data + 84);
+  uint32 offset = 88 + kNumberOfAssets * 4 + *(const uint32 *)(data + 84);
 
   for (size_t i = 0; i < kNumberOfAssets; i++) {
-    uint32 size = *(uint32 *)(data + 88 + i * 4);
+    uint32 size = *(const uint32 *)(data + 88 + i * 4);
     offset = (offset + 3) & ~3;
     if ((uint64)offset + size > length)
       Die("Assets file corruption");

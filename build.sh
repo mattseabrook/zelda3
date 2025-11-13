@@ -95,6 +95,72 @@ log_output() {
   fi
 }
 
+# --- Asset Embedding Helpers -------------------------------------------
+ensure_objcopy() {
+  if [[ -z "${OBJCOPY_TOOL:-}" ]]; then
+    if command -v llvm-objcopy >/dev/null 2>&1; then
+      OBJCOPY_TOOL="llvm-objcopy"
+    else
+      die "llvm-objcopy not found. Install LLVM binutils to embed assets."
+    fi
+  fi
+}
+
+embed_assets_object() {
+  ensure_objcopy
+
+  if [[ ! -f "$ASSETS_FILE" ]]; then
+    die "Missing zelda3_assets.dat. Run ./build.sh assets before building."
+  fi
+
+  mkdir -p "$BUILD_DIR" "$OBJ_DIR"
+
+  local staging="$BUILD_DIR/zelda3_assets.dat"
+  if [[ ! -f "$staging" || "$staging" -ot "$ASSETS_FILE" ]]; then
+    cp "$ASSETS_FILE" "$staging"
+  fi
+
+  local output_obj output_target binary_arch
+  binary_arch="x86_64"
+
+  if [[ "$TARGET_OS" == "windows" ]]; then
+    output_obj="$OBJ_DIR/zelda3_assets.obj"
+    output_target="pe-x86-64"
+  else
+    output_obj="$OBJ_DIR/zelda3_assets.o"
+    case "$(uname -s)" in
+      Darwin)
+        if [[ "$(uname -m)" == "arm64" ]]; then
+          output_target="mach-o-arm64"
+          binary_arch="aarch64"
+        else
+          output_target="mach-o-x86-64"
+        fi
+        ;;
+      *)
+        output_target="elf64-x86-64"
+        ;;
+    esac
+  fi
+
+  if [[ -f "$output_obj" && "$output_obj" -nt "$ASSETS_FILE" ]]; then
+    echo "$output_obj"
+    return 0
+  fi
+
+  echo "Embedding asset blob into $(basename "$output_obj")"
+
+  "$OBJCOPY_TOOL" \
+    --input-target=binary \
+    --output-target="$output_target" \
+    --binary-architecture="$binary_arch" \
+    --redefine-sym _binary_zelda3_assets_dat_start=g_zelda3_assets \
+    --redefine-sym _binary_zelda3_assets_dat_size=g_zelda3_assets_size \
+    "$staging" "$output_obj" || die "Failed to embed asset blob"
+
+  echo "$output_obj"
+}
+
 # --- Windows SDK Setup (for clang-cl cross-compilation) ------------------
 setup_winsdk() {
   banner "${EMOJI_WRENCH} Setting up Windows SDK"
@@ -699,6 +765,10 @@ TARGET_OS=$TARGET_OS"
   done
   
   echo "Collected ${#objects[@]} object files for linking"
+  local embedded_asset_obj
+  embedded_asset_obj=$(embed_assets_object)
+  objects+=("$embedded_asset_obj")
+  echo "Added embedded asset object: $(basename "$embedded_asset_obj")"
   
   # Linking
   banner "${EMOJI_WRENCH} Linking"
